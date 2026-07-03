@@ -1,0 +1,42 @@
+# Claude Code local session state
+.claude/
+
+# dependencies
+/app/node_modules/
+
+# Expo
+/app/.expo/
+/app/dist/
+/app/web-build/
+/app/expo-env.d.ts
+
+# generated native folders (CNG / expo prebuild)
+/app/ios/
+/app/android/
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo

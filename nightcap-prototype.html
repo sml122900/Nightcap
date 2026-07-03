@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Nightcap — 스와이프 정리 프로토타입</title>
+<style>
+/* ============================================================
+   DESIGN TOKENS  (Tailwind 스케일 1:1 매핑용)
+   neutral = zinc 계열, brand = amber, danger = red
+   ============================================================ */
+:root{
+  --bg:            #000000;   /* OLED 순수 블랙 — 발광 최소화 (Encore 다크 퍼스트) */
+  --surface:       #121214;
+  --surface-2:     #1a1a1e;
+  --surface-3:     #26262b;   /* zinc-700 */
+  --border:        #26262b;
+  --border-strong: #34343a;
+  --text:          #f4f4f5;   /* zinc-100 */
+  --text-2:        #8e8e96;   /* zinc-400 */
+  --text-3:        #55555c;   /* zinc-500/600 */
+  --brand:         #f5b942;   /* amber — 별점의 색 */
+  --brand-dim:     rgba(245,185,66,.14);
+  --danger:        #e5484d;
+  --danger-dim:    rgba(229,72,77,.12);
+  --radius:        20px;
+  --radius-sm:     12px;
+  --font: -apple-system, BlinkMacSystemFont, "Pretendard Variable", Pretendard,
+          "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", Roboto, sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:#000;
+  font-family:var(--font);
+  color:var(--text);
+  display:flex;align-items:center;justify-content:center;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+
+/* ---------- 폰 프레임 ---------- */
+.phone{
+  width:min(400px,100vw);
+  height:min(820px,100dvh);
+  background:var(--bg);
+  position:relative;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+}
+@media (min-width:440px){
+  .phone{border-radius:44px;border:1px solid var(--surface-3);
+         box-shadow:0 40px 120px rgba(0,0,0,.8)}
+}
+
+/* ---------- 공통 레이아웃 ---------- */
+.screen{position:absolute;inset:0;display:none;flex-direction:column}
+.screen.active{display:flex}
+.topbar{
+  padding:22px 24px 12px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:transparent;   /* 몽타주식 무경계 헤더 */
+  z-index:5;
+}
+.topbar .title{font-size:17px;font-weight:700;letter-spacing:-0.02em}
+.topbar .ghost-btn{
+  background:none;border:none;color:var(--text-2);
+  font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;
+  padding:6px 2px;
+}
+.topbar .ghost-btn:focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:6px}
+
+/* ---------- 탭 바 (HIG) ---------- */
+.tabbar{
+  display:flex;border-top:1px solid var(--border);
+  background:rgba(0,0,0,.92);backdrop-filter:blur(20px);
+  padding:10px 0 26px;z-index:10;
+}
+.tab{
+  flex:1;background:none;border:none;cursor:pointer;
+  color:var(--text-3);font-family:var(--font);
+  font-size:11px;font-weight:600;letter-spacing:-0.01em;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding-top:2px;
+}
+.tab svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.8}
+.tab.on{color:var(--text)}
+.tab:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;border-radius:10px}
+
+/* ============================================================
+   HOME — 오늘의 스택
+   ============================================================ */
+.home-body{flex:1;display:flex;flex-direction:column;padding:0 24px;overflow:hidden}
+.home-hero{margin-top:44px}
+.home-hero .eyebrow{
+  font-size:13px;font-weight:600;color:var(--text-2);letter-spacing:-0.01em;
+}
+.home-hero .big{
+  margin-top:10px;
+  font-size:64px;font-weight:800;letter-spacing:-0.045em;line-height:1.02;
+  font-variant-numeric:tabular-nums;
+}
+.home-hero .big em{font-style:normal;color:var(--brand)}
+.home-hero .sub{
+  margin-top:14px;font-size:15px;line-height:1.6;color:var(--text-2);
+  letter-spacing:-0.01em;
+}
+
+/* 미니 스택 프리뷰 — 시그니처: 실제 카드가 비껴 쌓인 모습 */
+.stack-preview{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  position:relative;min-height:180px;margin:8px 0;
+}
+.mini-card{
+  position:absolute;width:150px;height:196px;border-radius:16px;
+  background:var(--surface-2);border:1px solid var(--border-strong);
+  overflow:hidden;
+}
+.mini-card .mc-bar{height:7px;border-radius:4px;background:var(--surface-3);margin:0 12px}
+.mini-card .mc-app{
+  position:absolute;top:10px;left:10px;
+  font-size:9px;font-weight:700;color:var(--text-2);
+  background:rgba(0,0,0,.5);padding:3px 7px;border-radius:6px;
+  letter-spacing:0;
+}
+.mini-card .mc-thumb{height:112px;background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:flex-end;padding:10px}
+.mini-card .mc-play{width:26px;height:3px;border-radius:2px;background:var(--surface-3);position:relative;width:100%}
+.mini-card .mc-play::after{content:"";position:absolute;left:0;top:0;height:100%;width:38%;background:var(--text-3);border-radius:2px}
+
+.cta{
+  margin-bottom:20px;
+  width:100%;padding:18px;border:none;border-radius:16px;
+  background:var(--text);color:#0b0b0d;
+  font-family:var(--font);font-size:16px;font-weight:800;letter-spacing:-0.02em;
+  cursor:pointer;
+  transition:transform .15s ease;
+}
+.cta:active{transform:scale(.97)}
+.cta:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
+.cta.done-state{background:var(--surface-2);color:var(--text-3);cursor:default}
+
+/* ============================================================
+   TRIAGE — 스와이프 정리 (핵심 화면)
+   ============================================================ */
+.triage-top{
+  padding:20px 24px 8px;display:flex;align-items:center;justify-content:space-between;z-index:6;
+}
+.triage-count{
+  font-size:14px;font-weight:700;color:var(--text-2);
+  font-variant-numeric:tabular-nums;letter-spacing:-0.01em;
+}
+.triage-count b{color:var(--text)}
+.progress{
+  height:3px;margin:0 24px;border-radius:2px;background:var(--surface-2);overflow:hidden;
+}
+.progress i{display:block;height:100%;width:0%;background:var(--brand);border-radius:2px;
+  transition:width .35s cubic-bezier(.2,.8,.2,1)}
+
+.deck{
+  flex:1;position:relative;margin:18px 20px 8px;touch-action:none;
+}
+.card{
+  position:absolute;inset:0;
+  border-radius:var(--radius);
+  background:var(--surface);
+  border:1px solid var(--border-strong);
+  overflow:hidden;
+  will-change:transform;
+  display:flex;flex-direction:column;
+  user-select:none;-webkit-user-select:none;
+  box-shadow:0 24px 60px rgba(0,0,0,.55);
+}
+.card.behind{transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .35s}
+.card .thumb{
+  flex:1;position:relative;background:var(--surface-2);
+  border-bottom:1px solid var(--border);
+  display:flex;flex-direction:column;justify-content:flex-end;
+  padding:18px;overflow:hidden;
+}
+/* 스켈레톤형 콘텐츠 목업 — 장식 아닌 '스크린샷' 재현 */
+.sk-line{height:9px;border-radius:5px;background:var(--surface-3);margin-top:8px}
+.sk-line.w60{width:60%}.sk-line.w80{width:80%}.sk-line.w40{width:40%}
+.sk-avatar{width:30px;height:30px;border-radius:50%;background:var(--surface-3);margin-bottom:10px}
+.sk-progressbar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.08)}
+.sk-progressbar::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p,40%);background:rgba(255,255,255,.35)}
+.drm{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  background:var(--surface-2);border-bottom:1px solid var(--border);
+}
+.drm .drm-title{font-size:20px;font-weight:800;letter-spacing:-0.03em}
+.drm .drm-note{font-size:12px;color:var(--text-3)}
+.app-chip{
+  position:absolute;top:14px;left:14px;
+  font-size:11px;font-weight:700;letter-spacing:0;
+  color:var(--text);background:rgba(0,0,0,.55);backdrop-filter:blur(8px);
+  padding:5px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.08);
+}
+.time-chip{
+  position:absolute;top:14px;right:14px;
+  font-size:11px;font-weight:600;color:var(--text-2);
+  background:rgba(0,0,0,.4);padding:5px 9px;border-radius:8px;
+  font-variant-numeric:tabular-nums;
+}
+.card .meta{padding:16px 18px 18px}
+.card .meta .ttl{font-size:16px;font-weight:700;letter-spacing:-0.02em;line-height:1.4}
+.card .meta .src{margin-top:5px;font-size:12.5px;color:var(--text-3);letter-spacing:-0.01em}
+
+/* 판정 오버레이 */
+.verdict{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;border-radius:var(--radius);
+  transition:opacity .08s linear;
+}
+.verdict .v-label{
+  font-size:22px;font-weight:800;letter-spacing:-0.02em;
+  padding:12px 22px;border-radius:14px;border:2px solid;
+  transform:rotate(-6deg);
+}
+.verdict.hold{background:rgba(255,255,255,.05)}
+.verdict.hold .v-label{color:var(--text-2);border-color:var(--text-3)}
+.verdict.prev{background:rgba(255,255,255,.05)}
+.verdict.prev .v-label{color:var(--text-2);border-color:var(--text-3);transform:rotate(6deg)}
+.verdict.drop{background:var(--danger-dim)}
+.verdict.drop .v-label{color:var(--danger);border-color:var(--danger);transform:none}
+.verdict.rate{background:var(--brand-dim);flex-direction:column;gap:12px}
+.verdict.rate .rv{font-size:54px;font-weight:800;color:var(--brand);
+  font-variant-numeric:tabular-nums;letter-spacing:-0.04em;line-height:1}
+.verdict.rate .v-label{transform:none;color:var(--brand);border-color:var(--brand)}
+
+/* 별점 모드 — 위로 스와이프하면 진입, 드래그로 0.5 단위 조정 */
+.rate-layer{
+  position:absolute;inset:0;z-index:40;display:none;
+  flex-direction:column;align-items:center;justify-content:flex-end;
+  padding-bottom:110px;background:rgba(0,0,0,.78);backdrop-filter:blur(6px);
+}
+.rate-layer.on{display:flex}
+.rate-value{
+  font-size:60px;font-weight:800;color:var(--brand);
+  letter-spacing:-0.045em;font-variant-numeric:tabular-nums;line-height:1;
+}
+.rate-stars{
+  display:flex;gap:12px;margin-top:20px;padding:18px 22px;
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:20px;
+  touch-action:none;cursor:pointer;
+}
+.rstar{position:relative;width:36px;height:36px}
+.rstar svg{width:36px;height:36px;fill:var(--surface-3);display:block}
+.rstar .fillw{position:absolute;inset:0;overflow:hidden;width:0%}
+.rstar .fillw svg{fill:var(--brand)}
+.rate-hint{margin-top:16px;font-size:13px;color:var(--text-2);font-weight:600;letter-spacing:-0.01em}
+
+/* 하단 가이드 + 언두 */
+.triage-foot{
+  padding:6px 24px 24px;display:flex;align-items:center;justify-content:space-between;
+}
+.hint-row{display:flex;gap:16px}
+.hint{font-size:12px;color:var(--text-3);font-weight:600;letter-spacing:-0.01em;display:flex;align-items:center;gap:6px}
+.hint .key{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:7px;border:1px solid var(--border-strong);
+  font-size:12px;color:var(--text-2);
+}
+.undo{
+  background:none;border:1px solid var(--border-strong);color:var(--text-2);
+  font-family:var(--font);font-size:13px;font-weight:700;
+  padding:9px 16px;border-radius:12px;cursor:pointer;
+}
+.undo:disabled{opacity:.35;cursor:default}
+.undo:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+/* ============================================================
+   DONE — 요약
+   ============================================================ */
+/* Wrapped 문법 — 공유되어 밖으로 나가는 화면. 여기만 색 제한 해제, 타이포가 주인공 */
+.done-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 26px;gap:0}
+.done-eyebrow{font-size:13px;font-weight:800;color:var(--text-3);letter-spacing:.08em;text-transform:uppercase}
+.done-big{margin-top:12px;font-size:46px;font-weight:800;letter-spacing:-0.05em;line-height:1.12}
+.done-big em{font-style:normal;color:var(--brand)}
+.wrap-rows{margin-top:32px}
+.wrap-hero{
+  background:var(--brand);color:#1a1200;border-radius:18px;
+  padding:18px 20px;display:flex;align-items:baseline;justify-content:space-between;
+}
+.wrap-hero .wl{font-size:15px;font-weight:800;letter-spacing:-0.02em}
+.wrap-hero .wn{font-size:40px;font-weight:800;letter-spacing:-0.04em;font-variant-numeric:tabular-nums;line-height:1}
+.wrap-row{
+  display:flex;align-items:baseline;justify-content:space-between;
+  padding:15px 4px;border-bottom:1px solid var(--border);
+}
+.wrap-row .wl{font-size:14px;font-weight:600;color:var(--text-2);letter-spacing:-0.01em}
+.wrap-row .wn{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-0.03em}
+.wrap-row .wn.dim{color:var(--text-3)}
+.wrap-row .wn.src{font-size:17px;letter-spacing:-0.02em}
+.done-note{margin-top:26px;font-size:14px;color:var(--text-2);line-height:1.65;letter-spacing:-0.01em}
+.done-actions{padding:0 24px 24px;display:flex;flex-direction:column;gap:10px}
+.btn-secondary{
+  width:100%;padding:17px;border-radius:16px;cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);
+  font-family:var(--font);font-size:15px;font-weight:700;letter-spacing:-0.02em;
+}
+.btn-secondary:focus-visible,.share-cta:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+/* ============================================================
+   LIBRARY — 보관함
+   ============================================================ */
+.chips{display:flex;gap:8px;padding:6px 24px 14px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex:none;padding:8px 15px;border-radius:999px;cursor:pointer;
+  background:var(--surface);border:1px solid var(--border-strong);
+  color:var(--text-2);font-family:var(--font);font-size:13px;font-weight:700;letter-spacing:-0.01em;
+}
+.chip.on{background:var(--text);border-color:var(--text);color:#0b0b0d}
+.chip:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+/* Pinterest식 메이슨리 — 이질적 비율(쇼츠 세로 / 유튜브 가로 / 텍스트)을 자연스럽게 소화 */
+.lib-grid{
+  flex:1;overflow-y:auto;padding:2px 24px 24px;
+  columns:2;column-gap:12px;
+}
+.lib-item{
+  border-radius:var(--radius-sm);overflow:hidden;
+  background:var(--surface);border:1px solid var(--border);
+  position:relative;display:flex;flex-direction:column;
+  break-inside:avoid;margin-bottom:12px;
+}
+.lib-item .li-thumb{background:var(--surface-2);position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:10px}
+.lib-item.t-tall .li-thumb{height:198px}   /* 쇼츠·릴스 세로형 */
+.lib-item.t-wide .li-thumb{height:86px}    /* 유튜브 가로형 */
+.lib-item.t-text .li-thumb{height:96px}    /* 텍스트 캡처 */
+.lib-item.t-drm  .li-thumb{height:122px}   /* DRM 작품 정보 */
+.lib-item .li-meta{padding:10px 12px 12px}
+.lib-item .li-ttl{font-size:12.5px;font-weight:700;letter-spacing:-0.02em;line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lib-item .li-app{margin-top:4px;font-size:10.5px;color:var(--text-3);font-weight:600}
+.star-badge{
+  position:absolute;top:8px;right:8px;
+  display:flex;align-items:center;gap:3px;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(6px);
+  padding:4px 8px;border-radius:8px;
+  font-size:11px;font-weight:800;color:var(--brand);font-variant-numeric:tabular-nums;
+}
+.star-badge svg{width:11px;height:11px;fill:var(--brand)}
+.lib-empty{
+  grid-column:1/-1;padding:60px 20px;text-align:center;
+  color:var(--text-3);font-size:14px;line-height:1.7;
+}
+
+/* ============================================================
+   SHARE — 공유 카드
+   ============================================================ */
+.share-body{flex:1;display:flex;align-items:center;justify-content:center;padding:10px 28px}
+.share-card{
+  width:100%;border-radius:24px;overflow:hidden;
+  background:var(--surface);border:1px solid var(--border-strong);
+  padding:26px 24px 22px;
+}
+.share-card .sc-eyebrow{font-size:11.5px;font-weight:700;color:var(--text-3);letter-spacing:.04em}
+.share-card .sc-title{margin-top:8px;font-size:23px;font-weight:800;letter-spacing:-0.035em;line-height:1.25}
+.share-card .sc-title em{font-style:normal;color:var(--brand)}
+.sc-list{margin-top:20px;border-top:1px solid var(--border)}
+.sc-row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border)}
+.sc-row .sc-rank{font-size:13px;font-weight:800;color:var(--text-3);width:16px;font-variant-numeric:tabular-nums}
+.sc-row .sc-info{flex:1;min-width:0}
+.sc-row .sc-t{font-size:13.5px;font-weight:700;letter-spacing:-0.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-row .sc-a{font-size:11px;color:var(--text-3);margin-top:2px;font-weight:600}
+.sc-row .sc-s{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:800;color:var(--brand);font-variant-numeric:tabular-nums}
+.sc-row .sc-s svg{width:12px;height:12px;fill:var(--brand)}
+.sc-foot{margin-top:16px;display:flex;justify-content:space-between;align-items:center}
+.sc-foot .sc-brand{font-size:11.5px;font-weight:800;color:var(--text-3);letter-spacing:-0.01em}
+.sc-foot .sc-date{font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.share-cta{
+  margin:0 24px 20px;padding:17px;border:none;border-radius:16px;cursor:pointer;
+  background:var(--brand);color:#1a1200;
+  font-family:var(--font);font-size:15px;font-weight:800;letter-spacing:-0.02em;
+}
+
+/* 토스트 */
+.toast{
+  position:absolute;left:50%;bottom:110px;transform:translateX(-50%) translateY(8px);
+  background:var(--surface-3);color:var(--text);
+  font-size:13.5px;font-weight:700;letter-spacing:-0.01em;
+  padding:12px 20px;border-radius:14px;border:1px solid var(--border-strong);
+  opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:50;
+  white-space:nowrap;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<div class="phone">
+
+  <!-- ========== HOME ========== -->
+  <section class="screen active" id="scr-home">
+    <div class="topbar">
+      <span class="title">오늘</span>
+      <button class="ghost-btn" onclick="toast('설정은 프로토타입 범위 밖이에요')">설정</button>
+    </div>
+    <div class="home-body">
+      <div class="home-hero">
+        <div class="eyebrow" id="home-date"></div>
+        <div class="big" id="home-count"><em>8</em>장 쌓임</div>
+        <div class="sub">오늘 폰 보다가 잡아둔 순간들.<br>자기 전에 스와이프로 정리하세요.</div>
+      </div>
+      <div class="stack-preview" id="stack-preview" aria-hidden="true"></div>
+      <button class="cta" id="btn-start" onclick="startTriage()">정리 시작</button>
+    </div>
+    <nav class="tabbar">
+      <button class="tab on" data-tab="home" onclick="goTab('home')">
+        <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg>
+        오늘
+      </button>
+      <button class="tab" data-tab="lib" onclick="goTab('lib')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+        보관함
+      </button>
+    </nav>
+  </section>
+
+  <!-- ========== TRIAGE ========== -->
+  <section class="screen" id="scr-triage">
+    <div class="triage-top">
+      <button class="ghost-btn" onclick="exitTriage()">닫기</button>
+      <span class="triage-count"><b id="tri-cur">1</b> / <span id="tri-total">8</span></span>
+      <span style="width:34px"></span>
+    </div>
+    <div class="progress"><i id="tri-progress"></i></div>
+    <div class="deck" id="deck"></div>
+    <div class="triage-foot" style="justify-content:center">
+      <div class="hint-row">
+        <span class="hint"><span class="key">←</span> 보류</span>
+        <span class="hint"><span class="key">↓</span> 삭제</span>
+        <span class="hint"><span class="key">↑</span> 별점</span>
+        <span class="hint"><span class="key">→</span> 이전</span>
+      </div>
+    </div>
+    <div class="rate-layer" id="rate-layer">
+      <div class="rate-value" id="rate-value">2.5</div>
+      <div class="rate-stars" id="rate-stars"></div>
+      <div class="rate-hint">드래그로 조정 · 바깥을 탭하면 2.5점</div>
+    </div>
+  </section>
+
+  <!-- ========== DONE ========== -->
+  <section class="screen" id="scr-done">
+    <div class="done-body">
+      <div class="done-eyebrow">오늘의 정리</div>
+      <div class="done-big" id="done-headline"><em>8장</em>을<br>1분 만에.</div>
+      <div class="wrap-rows">
+        <div class="wrap-hero"><span class="wl">평균 별점</span><span class="wn" id="dn-avg">—</span></div>
+        <div class="wrap-row"><span class="wl">평가한 캡처</span><span class="wn" id="dn-rated">0</span></div>
+        <div class="wrap-row"><span class="wl">보류 · 내일로 이월</span><span class="wn" id="dn-hold">0</span></div>
+        <div class="wrap-row"><span class="wl">삭제 · 사진첩에서 제거</span><span class="wn dim" id="dn-drop">0</span></div>
+        <div class="wrap-row"><span class="wl">최다 출처</span><span class="wn src" id="dn-app">—</span></div>
+      </div>
+      <div class="done-note" id="done-note"></div>
+    </div>
+    <div class="done-actions">
+      <button class="cta" style="margin:0" onclick="goShare()">공유 카드 만들기</button>
+      <button class="btn-secondary" onclick="goTab('lib')">보관함 보기</button>
+    </div>
+  </section>
+
+  <!-- ========== LIBRARY ========== -->
+  <section class="screen" id="scr-lib">
+    <div class="topbar">
+      <span class="title">보관함</span>
+      <button class="ghost-btn" onclick="goShare()">공유</button>
+    </div>
+    <div class="chips" id="chips">
+      <button class="chip on" data-f="all" onclick="setFilter('all')">전체</button>
+      <button class="chip" data-f="4.5" onclick="setFilter('4.5')">4.5↑</button>
+      <button class="chip" data-f="4" onclick="setFilter('4')">4.0↑</button>
+      <button class="chip" data-f="3" onclick="setFilter('3')">3.0↑</button>
+    </div>
+    <div class="lib-grid" id="lib-grid"></div>
+    <nav class="tabbar">
+      <button class="tab" data-tab="home" onclick="goTab('home')">
+        <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg>
+        오늘
+      </button>
+      <button class="tab on" data-tab="lib" onclick="goTab('lib')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+        보관함
+      </button>
+    </nav>
+  </section>
+
+  <!-- ========== SHARE ========== -->
+  <section class="screen" id="scr-share">
+    <div class="topbar">
+      <button class="ghost-btn" onclick="goTab('lib')">뒤로</button>
+      <span class="title">공유 카드</span>
+      <span style="width:34px"></span>
+    </div>
+    <div class="share-body">
+      <div class="share-card" id="share-card"></div>
+    </div>
+    <button class="share-cta" onclick="toast('이미지로 저장됨 (프로토타입)')">이미지로 저장</button>
+  </section>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* ============================================================
+   DATA — 가짜 캡처 8장 (넷플릭스는 DRM 케이스)
+   ============================================================ */
+const STAR = '<svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z"/></svg>';
+
+const CAPTURES = [
+  {app:'유튜브 쇼츠', time:'09:12', title:'자취생 5분 마라탕, 이건 진짜다', src:'@요리하는_공대생', kind:'video', p:'62%'},
+  {app:'인스타 릴스', time:'11:47', title:'한강뷰 카페 신상, 평일 오전 웨이팅 없음', src:'@seoul.cafe.log', kind:'video', p:'18%'},
+  {app:'X', time:'12:30', title:'Claude Code로 위젯 앱 하루 만에 만든 후기 스레드', src:'@indie_dev_kr', kind:'text'},
+  {app:'카카오톡', time:'14:05', title:'동아리 단톡에 올라온 유도 대회 일정 공지', src:'한양대 유도부', kind:'text'},
+  {app:'유튜브', time:'16:22', title:'KBL 파이널 하이라이트, 4쿼터 역전 장면', src:'KBL 공식 채널', kind:'video', p:'87%'},
+  {app:'넷플릭스', time:'20:40', title:'주말에 볼 신작 시리즈', src:'시즌 1 · 8부작', kind:'drm'},
+  {app:'인스타 릴스', time:'22:15', title:'집에서 하는 10분 스트레칭 루틴', src:'@move.daily', kind:'video', p:'44%'},
+  {app:'유튜브 쇼츠', time:'23:02', title:'옵시디언 Dataview 꿀팁 30초 정리', src:'@생산성덕후', kind:'video', p:'71%'},
+];
+
+/* 이전 세션에서 이미 평가된 것들 (보관함 시드) */
+let LIBRARY = [
+  {app:'유튜브', title:'토스 디자이너가 말하는 다크 UI 원칙', src:'디자인 나침반', stars:5, kind:'video', p:'92%'},
+  {app:'인스타 릴스', title:'성수동 우동 맛집, 오픈런 필수', src:'@matjib_zip', stars:4, kind:'video', p:'30%'},
+  {app:'X', title:'Expo 53 업데이트 핵심 정리', src:'@rn_news', stars:4, kind:'text'},
+  {app:'유튜브 쇼츠', title:'농구 크로스오버 기본기 드릴', src:'@hoops.coach', stars:3, kind:'video', p:'55%'},
+];
+
+let queue = [];        // 남은 캡처
+let holdover = [];     // 보류 → 내일 스택으로 이월
+let history = [];      // 이전 스택 {item, verdict, stars}
+let session = {rated:0, sum:0, hold:0, drop:0, apps:{}};
+let filter = 'all';
+let todayDone = false;
+let rating = null;     // 별점 모드 중인 카드 (null = 비활성)
+
+/* ============================================================
+   유틸
+   ============================================================ */
+const $ = s => document.querySelector(s);
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+function vibrate(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+
+function thumbHTML(item){
+  if(item.kind === 'drm'){
+    return `<div class="drm">
+      <div class="drm-title">${item.title}</div>
+      <div class="drm-note">화면 캡처 제한 콘텐츠 · 작품 정보로 저장됨</div>
+    </div>`;
+  }
+  const lines = item.kind === 'video'
+    ? `<div class="sk-avatar"></div><div class="sk-line w80"></div><div class="sk-line w40"></div>
+       <div class="sk-progressbar" style="--p:${item.p||'40%'}"></div>`
+    : `<div class="sk-line w80" style="margin-top:0"></div><div class="sk-line"></div>
+       <div class="sk-line w60"></div><div class="sk-line w40"></div>`;
+  return `<div class="thumb">
+    <span class="app-chip">${item.app}</span>
+    ${item.time ? `<span class="time-chip">${item.time}</span>` : ''}
+    ${lines}
+  </div>`;
+}
+
+/* ============================================================
+   HOME
+   ============================================================ */
+function renderHome(){
+  const d = new Date();
+  $('#home-date').textContent = `${d.getMonth()+1}월 ${d.getDate()}일 ${['일','월','화','수','목','금','토'][d.getDay()]}요일`;
+  const n = todayDone ? 0 : CAPTURES.length;
+  $('#home-count').innerHTML = todayDone
+    ? '오늘 정리 끝'
+    : `<em>${n}</em>장 쌓임`;
+  const btn = $('#btn-start');
+  if(todayDone){
+    btn.textContent = '내일 또 만나요';
+    btn.classList.add('done-state');
+    btn.onclick = null;
+  }
+  /* 미니 스택 */
+  const sp = $('#stack-preview');
+  sp.innerHTML = '';
+  if(!todayDone){
+    CAPTURES.slice(0,3).forEach((c,i)=>{
+      const el = document.createElement('div');
+      el.className = 'mini-card';
+      el.style.transform = `rotate(${(i-1)*7}deg) translateX(${(i-1)*34}px) translateY(${i===1?-6:4}px)`;
+      el.style.zIndex = 3-i;
+      el.innerHTML = `<div class="mc-thumb"><span class="mc-app">${c.app}</span><div class="mc-play"></div></div>
+        <div style="padding:12px 0"><div class="mc-bar" style="width:70%"></div><div class="mc-bar" style="width:45%;margin-top:7px"></div></div>`;
+      sp.appendChild(el);
+    });
+  } else {
+    sp.innerHTML = `<div style="color:var(--text-3);font-size:14px;line-height:1.7;text-align:center">
+      사진첩이 깨끗해졌어요.<br>내일 캡처가 쌓이면 다시 불러올게요.</div>`;
+  }
+}
+
+/* ============================================================
+   TRIAGE — 카드 스와이프 엔진
+   ============================================================ */
+function startTriage(){
+  queue = CAPTURES.slice();
+  holdover = [];
+  history = [];
+  session = {rated:0, sum:0, hold:0, drop:0, apps:{}};
+  rating = null;
+  $('#tri-total').textContent = queue.length;
+  showScreen('scr-triage');
+  renderDeck();
+  updateTriHUD();
+}
+function exitTriage(){
+  closeRateLayer();
+  showScreen('scr-home');
+  renderHome();
+}
+function updateTriHUD(){
+  const total = CAPTURES.length;
+  const done = total - queue.length;
+  $('#tri-cur').textContent = Math.min(done+1, total);
+  $('#tri-progress').style.width = (done/total*100) + '%';
+}
+
+function renderDeck(){
+  const deck = $('#deck');
+  deck.innerHTML = '';
+  /* 뒤 2장 + 맨 위 1장 */
+  queue.slice(0,3).reverse().forEach((item, idx, arr)=>{
+    const depth = arr.length - 1 - idx;   /* 0 = top */
+    const card = buildCard(item, depth);
+    deck.appendChild(card);
+  });
+  const top = deck.lastElementChild;
+  if(top) attachDrag(top);
+}
+
+function buildCard(item, depth){
+  const el = document.createElement('div');
+  el.className = 'card' + (depth>0 ? ' behind' : '');
+  el.style.zIndex = 10 - depth;
+  el.style.transform = depth>0
+    ? `scale(${1-depth*.045}) translateY(${depth*14}px)`
+    : '';
+  el.innerHTML = `
+    ${thumbHTML(item)}
+    <div class="meta">
+      <div class="ttl">${item.title}</div>
+      <div class="src">${item.app} · ${item.src}</div>
+    </div>
+    <div class="verdict hold"><span class="v-label">보류</span></div>
+    <div class="verdict prev"><span class="v-label">이전</span></div>
+    <div class="verdict drop"><span class="v-label">삭제</span></div>
+    <div class="verdict rate">
+      <div class="rv">2.5</div>
+      <span class="v-label">별점</span>
+    </div>`;
+  el._item = item;
+  return el;
+}
+
+/* ---- 드래그 피직스 (4방향: ← 보류 / → 이전 / ↓ 삭제 / ↑ 별점) ---- */
+const TH_X = 92;         /* 좌우 판정 임계값 px */
+const TH_DOWN = 110;     /* 아래(삭제) — 실수 방지 위해 좌우보다 높게 */
+const TH_UP = 110;       /* 위(별점 모드 진입) */
+const RATE_SPAN = 230;   /* upness 이 값이면 프리필 5.0 */
+
+function upnessOf(dx,dy){ return Math.max(0, -dy - Math.abs(dx)*0.6); }
+function downnessOf(dx,dy){ return Math.max(0,  dy - Math.abs(dx)*0.6); }
+function prefillOf(up){ return Math.min(5, Math.max(0.5, Math.round(up/RATE_SPAN*5*2)/2)); }
+
+function springBack(card){
+  card.style.transition = 'transform .4s cubic-bezier(.2,1.4,.3,1)';
+  card.style.transform = '';
+  card.querySelectorAll('.verdict').forEach(v=>v.style.opacity=0);
+}
+
+function attachDrag(card){
+  let sx=0, sy=0, dx=0, dy=0, dragging=false, raf=null;
+  const vHold = card.querySelector('.verdict.hold');
+  const vPrev = card.querySelector('.verdict.prev');
+  const vDrop = card.querySelector('.verdict.drop');
+  const vRate = card.querySelector('.verdict.rate');
+  const rv    = vRate.querySelector('.rv');
+
+  function frame(){
+    raf = null;
+    card.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx*0.055}deg)`;
+    const up = upnessOf(dx,dy), down = downnessOf(dx,dy);
+    if(up > 24){
+      rv.textContent = prefillOf(up).toFixed(1);
+      vRate.style.opacity = Math.min(1, up/TH_UP);
+      vHold.style.opacity = vPrev.style.opacity = vDrop.style.opacity = 0;
+    } else if(down > 24){
+      vDrop.style.opacity = Math.min(1, down/TH_DOWN);
+      vHold.style.opacity = vPrev.style.opacity = vRate.style.opacity = 0;
+    } else {
+      vRate.style.opacity = vDrop.style.opacity = 0;
+      vHold.style.opacity = dx < -24 ? Math.min(1,-dx/TH_X) : 0;
+      vPrev.style.opacity = dx >  24 ? Math.min(1, dx/TH_X) : 0;
+    }
+  }
+  function onDown(e){
+    if(rating) return;                 /* 별점 모드 중엔 덱 잠금 */
+    dragging = true;
+    sx = e.clientX; sy = e.clientY; dx = dy = 0;
+    card.style.transition = 'none';
+    card.setPointerCapture(e.pointerId);
+  }
+  function onMove(e){
+    if(!dragging) return;
+    dx = e.clientX - sx; dy = e.clientY - sy;
+    if(!raf) raf = requestAnimationFrame(frame);
+  }
+  function onUp(){
+    if(!dragging) return;
+    dragging = false;
+    const up = upnessOf(dx,dy), down = downnessOf(dx,dy);
+    if(up > TH_UP)            enterRateMode(card, prefillOf(up));
+    else if(down > TH_DOWN)   resolveCard(card, 'drop');
+    else if(dx < -TH_X)       resolveCard(card, 'hold');
+    else if(dx >  TH_X)       goPrev(card);
+    else                      springBack(card);
+  }
+  card.addEventListener('pointerdown', onDown);
+  card.addEventListener('pointermove', onMove);
+  card.addEventListener('pointerup', onUp);
+  card.addEventListener('pointercancel', onUp);
+}
+
+/* ---- 별점 모드 ---- */
+function initRateStars(){
+  const box = $('#rate-stars');
+  box.innerHTML = Array.from({length:5}, ()=>
+    `<span class="rstar">${STAR}<span class="fillw">${STAR}</span></span>`).join('');
+  let active = false;
+  function valueFromX(clientX){
+    const r = box.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    return Math.max(0.5, Math.round(ratio*5*2)/2);
+  }
+  box.addEventListener('pointerdown', e=>{
+    e.stopPropagation(); active = true;
+    box.setPointerCapture(e.pointerId);
+    setRateValue(valueFromX(e.clientX));
+  });
+  box.addEventListener('pointermove', e=>{
+    if(active) setRateValue(valueFromX(e.clientX));
+  });
+  box.addEventListener('pointerup', e=>{
+    if(!active) return; active = false;
+    commitRating(parseFloat($('#rate-value').textContent));   /* 드래그 후 놓으면 확정 */
+  });
+  /* 별 바깥 아무 곳 탭 = 2.5 고정 저장 */
+  $('#rate-layer').addEventListener('pointerdown', e=>{
+    if(e.target.closest('.rate-stars')) return;
+    commitRating(2.5);
+  });
+}
+function setRateValue(v){
+  $('#rate-value').textContent = v.toFixed(1);
+  document.querySelectorAll('#rate-stars .rstar').forEach((s,i)=>{
+    s.querySelector('.fillw').style.width =
+      Math.min(100, Math.max(0, (v - i)*100)) + '%';
+  });
+}
+function enterRateMode(card, prefill){
+  rating = card;
+  card.style.transition = 'transform .3s cubic-bezier(.2,.8,.2,1)';
+  card.style.transform = 'translateY(-152px) scale(.9)';
+  card.style.zIndex = 45;
+  card.querySelectorAll('.verdict').forEach(v=>v.style.opacity=0);
+  setRateValue(prefill);
+  $('#rate-layer').classList.add('on');
+  vibrate(10);
+}
+function closeRateLayer(){
+  $('#rate-layer').classList.remove('on');
+  rating = null;
+}
+function commitRating(v){
+  if(!rating) return;
+  const card = rating;
+  closeRateLayer();
+  resolveCard(card, 'rate', v);
+}
+
+/* 키보드 지원 */
+document.addEventListener('keydown', e=>{
+  if(!$('#scr-triage').classList.contains('active')) return;
+  if(rating){   /* 별점 모드: ←→ 0.5 조정, Enter 확정, Esc = 2.5 */
+    const cur = parseFloat($('#rate-value').textContent);
+    if(e.key==='ArrowRight') setRateValue(Math.min(5, cur+0.5));
+    if(e.key==='ArrowLeft')  setRateValue(Math.max(0.5, cur-0.5));
+    if(e.key==='Enter')      commitRating(parseFloat($('#rate-value').textContent));
+    if(e.key==='Escape')     commitRating(2.5);
+    return;
+  }
+  const top = $('#deck').lastElementChild;
+  if(!top) return;
+  if(e.key==='ArrowLeft')  resolveCard(top,'hold');
+  if(e.key==='ArrowDown')  resolveCard(top,'drop');
+  if(e.key==='ArrowUp')    enterRateMode(top, 2.5);
+  if(e.key==='ArrowRight') goPrev(top);
+});
+
+function resolveCard(card, verdict, stars){
+  const item = card._item;
+  const fly = {
+    hold: 'translate(-480px, -30px) rotate(-20deg)',
+    drop: 'translate(0, 640px) rotate(5deg)',
+    rate: 'translate(0, -660px) rotate(-4deg) scale(1.04)'
+  }[verdict];
+  card.style.transition = 'transform .38s cubic-bezier(.3,.7,.4,1), opacity .38s';
+  card.style.transform = fly;
+  card.style.opacity = '0';
+  vibrate(verdict==='rate' ? [15,40,25] : 12);
+
+  queue.shift();
+  history.push({item, verdict, stars});
+  session.apps[item.app] = (session.apps[item.app]||0) + 1;
+  if(verdict==='rate'){ session.rated++; session.sum += stars; LIBRARY.unshift({...item, stars}); }
+  if(verdict==='hold'){ session.hold++; holdover.push(item); }
+  if(verdict==='drop'){ session.drop++; }
+
+  setTimeout(()=>{
+    if(queue.length === 0){ finishTriage(); }
+    else { renderDeck(); updateTriHUD(); }
+  }, 240);
+  updateTriHUD();
+}
+
+/* → 이전: 마지막 판정을 되돌리고 그 카드를 다시 맨 위로 */
+function goPrev(card){
+  springBack(card);
+  if(history.length === 0){ toast('첫 캡처예요'); return; }
+  const last = history.pop();
+  session.apps[last.item.app]--;
+  if(last.verdict==='rate'){ session.rated--; session.sum -= last.stars; LIBRARY.shift(); }
+  if(last.verdict==='hold'){ session.hold--; holdover.pop(); }
+  if(last.verdict==='drop'){ session.drop--; }
+  queue.unshift(last.item);
+  setTimeout(()=>{ renderDeck(); updateTriHUD(); }, 200);
+}
+
+function finishTriage(){
+  todayDone = true;
+  const total = session.rated + session.hold + session.drop;
+  const mins = Math.max(1, Math.round(total*3/60*10)/10);
+  $('#done-headline').innerHTML = `<em>${total}장</em>을<br>${mins}분 만에.`;
+  const avg = session.rated ? (session.sum/session.rated) : 0;
+  $('#dn-avg').textContent = session.rated ? avg.toFixed(1) : '—';
+  $('#dn-rated').textContent = session.rated;
+  $('#dn-hold').textContent = session.hold;
+  $('#dn-drop').textContent = session.drop;
+  const topApp = Object.entries(session.apps).sort((a,b)=>b[1]-a[1])[0];
+  $('#dn-app').textContent = topApp ? topApp[0] : '—';
+  $('#done-note').innerHTML =
+    `삭제한 ${session.drop}장은 사진첩에서도 지워졌어요.` +
+    (session.hold ? `<br>보류한 ${session.hold}장은 내일 스택 맨 위에서 다시 만나요.` : '');
+  showScreen('scr-done');
+}
+
+/* ============================================================
+   LIBRARY
+   ============================================================ */
+function setFilter(f){
+  filter = f;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.f===f));
+  renderLibrary();
+}
+function renderLibrary(){
+  const grid = $('#lib-grid');
+  const items = LIBRARY.filter(it => filter==='all' || it.stars >= parseFloat(filter));
+  if(items.length === 0){
+    grid.innerHTML = `<div class="lib-empty">아직 여기엔 아무것도 없어요.<br>오늘의 스택을 정리하면 채워져요.</div>`;
+    return;
+  }
+  const typeOf = it => it.kind==='drm' ? 't-drm'
+    : it.kind==='text' ? 't-text'
+    : /(쇼츠|릴스)/.test(it.app) ? 't-tall' : 't-wide';
+  grid.innerHTML = items.map(it=>`
+    <div class="lib-item ${typeOf(it)}">
+      <div class="li-thumb">
+        ${it.kind==='drm'
+          ? `<div style="margin:auto;text-align:center"><div style="font-size:13px;font-weight:800">${it.title.slice(0,10)}…</div><div style="font-size:9px;color:var(--text-3);margin-top:4px">작품 정보</div></div>`
+          : (it.kind==='video'
+              ? `<div class="sk-avatar" style="width:22px;height:22px"></div><div class="sk-line w80" style="height:7px"></div><div class="sk-progressbar" style="--p:${it.p||'40%'}"></div>`
+              : `<div class="sk-line w80" style="height:7px;margin-top:0"></div><div class="sk-line" style="height:7px"></div><div class="sk-line w60" style="height:7px"></div>`)}
+        <span class="star-badge">${STAR}${it.stars.toFixed(1)}</span>
+      </div>
+      <div class="li-meta">
+        <div class="li-ttl">${it.title}</div>
+        <div class="li-app">${it.app}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ============================================================
+   SHARE
+   ============================================================ */
+function goShare(){
+  const top = LIBRARY.filter(i=>i.stars>=4).slice(0,4);
+  const d = new Date();
+  $('#share-card').innerHTML = `
+    <div class="sc-eyebrow">이번 주 내가 건진 것들</div>
+    <div class="sc-title">알고리즘 말고<br><em>내가 고른</em> 피드</div>
+    <div class="sc-list">
+      ${top.map((it,i)=>`
+        <div class="sc-row">
+          <span class="sc-rank">${i+1}</span>
+          <span class="sc-info">
+            <div class="sc-t">${it.title}</div>
+            <div class="sc-a">${it.app}</div>
+          </span>
+          <span class="sc-s">${STAR}<b>${it.stars.toFixed(1)}</b></span>
+        </div>`).join('')}
+    </div>
+    <div class="sc-foot">
+      <span class="sc-brand">Nightcap</span>
+      <span class="sc-date">${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}</span>
+    </div>`;
+  showScreen('scr-share');
+}
+
+/* ============================================================
+   내비게이션
+   ============================================================ */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $('#'+id).classList.add('active');
+}
+function goTab(tab){
+  if(tab==='home'){ showScreen('scr-home'); renderHome(); }
+  else { showScreen('scr-lib'); renderLibrary(); }
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.tab===tab));
+}
+
+/* init */
+initRateStars();
+renderHome();
+renderLibrary();
+</script>
+</body>
+</html>

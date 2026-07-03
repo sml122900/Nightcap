@@ -1,0 +1,228 @@
+import React, { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  FadeIn,
+  measure,
+  runOnJS,
+  SharedValue,
+  useAnimatedProps,
+  useAnimatedReaction,
+  useAnimatedRef,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
+import { tokens } from '../../constants/tokens';
+import { RATE_DEFAULT_VALUE, rateValueFromRatio } from '../../constants/swipeEngine';
+
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
+
+interface RateModeLayerProps {
+  /** prefill value carried over from the drag that triggered rate mode */
+  prefill: number;
+  onCommit: (value: number) => void;
+}
+
+/** Ported from nightcap-prototype.html's #rate-layer / initRateStars / enterRateMode. */
+export function RateModeLayer({ prefill, onCommit }: RateModeLayerProps) {
+  const value = useSharedValue(prefill);
+  const starsRef = useAnimatedRef<Animated.View>();
+  const [accessibleValue, setAccessibleValue] = useState(prefill);
+
+  useAnimatedReaction(
+    () => Math.round(value.value * 2) / 2,
+    (current, previous) => {
+      if (current !== previous) runOnJS(setAccessibleValue)(current);
+    }
+  );
+
+  const commit = (v: number) => onCommit(v);
+
+  const adjust = (delta: number) => {
+    value.value = Math.min(5, Math.max(0.5, Math.round((value.value + delta) * 2) / 2));
+  };
+
+  const handleAccessibilityAction = (event: { nativeEvent: { actionName: string } }) => {
+    if (event.nativeEvent.actionName === 'increment') adjust(0.5);
+    else if (event.nativeEvent.actionName === 'decrement') adjust(-0.5);
+  };
+
+  const updateFromAbsoluteX = (absoluteX: number) => {
+    'worklet';
+    const layout = measure(starsRef);
+    if (!layout) return;
+    const ratio = (absoluteX - layout.pageX) / layout.width;
+    value.value = rateValueFromRatio(Math.min(1, Math.max(0, ratio)));
+  };
+
+  const starPan = Gesture.Pan()
+    .onBegin((e) => {
+      updateFromAbsoluteX(e.absoluteX);
+    })
+    .onUpdate((e) => {
+      updateFromAbsoluteX(e.absoluteX);
+    })
+    .onEnd(() => {
+      runOnJS(commit)(value.value);
+    });
+
+  const backgroundTap = Gesture.Tap().onEnd(() => {
+    runOnJS(commit)(RATE_DEFAULT_VALUE);
+  });
+
+  const valueProps = useAnimatedProps(() => ({
+    text: value.value.toFixed(1),
+  }));
+
+  return (
+    <GestureDetector gesture={backgroundTap}>
+      <Animated.View style={styles.layer} entering={FadeIn.duration(150)} accessibilityViewIsModal>
+        <AnimatedTextInput
+          editable={false}
+          defaultValue={prefill.toFixed(1)}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          animatedProps={valueProps as any}
+          style={styles.value}
+          underlineColorAndroid="transparent"
+        />
+        <GestureDetector gesture={starPan}>
+          <Animated.View
+            ref={starsRef}
+            style={styles.starsRow}
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel="별점"
+            accessibilityValue={{ min: 0.5, max: 5, now: accessibleValue }}
+            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+            onAccessibilityAction={handleAccessibilityAction}
+          >
+            {[0, 1, 2, 3, 4].map((i) => (
+              <RateStar key={i} index={i} value={value} />
+            ))}
+          </Animated.View>
+        </GestureDetector>
+        <Text style={styles.hint}>드래그로 조정 · 바깥을 탭하면 2.5점</Text>
+        <View style={styles.a11yRow}>
+          <Pressable
+            onPress={() => commit(value.value)}
+            style={styles.a11yBtn}
+            accessibilityRole="button"
+            accessibilityLabel="별점 확정"
+          >
+            <Text style={styles.a11yBtnText}>확정</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => commit(RATE_DEFAULT_VALUE)}
+            style={styles.a11yBtn}
+            accessibilityRole="button"
+            accessibilityLabel="평가 생략, 2.5점으로 저장"
+          >
+            <Text style={styles.a11yBtnText}>평가 생략 (2.5점)</Text>
+          </Pressable>
+        </View>
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+function RateStar({ index, value }: { index: number; value: SharedValue<number> }) {
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${Math.min(100, Math.max(0, (value.value - index) * 100))}%`,
+  }));
+  return (
+    <View style={styles.starWrap}>
+      <Text style={styles.starBase}>★</Text>
+      <Animated.View style={[styles.starFillClip, fillStyle]}>
+        <Text style={styles.starFill}>★</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+const STAR_SIZE = 36;
+
+const styles = StyleSheet.create({
+  layer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    backgroundColor: 'rgba(0,0,0,0.82)',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 110,
+  },
+  value: {
+    fontSize: 60,
+    fontWeight: '800',
+    color: tokens.brand,
+    letterSpacing: -1,
+    padding: 0,
+    textAlign: 'center',
+  },
+  starsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+    paddingHorizontal: 22,
+    paddingVertical: 18,
+    backgroundColor: tokens.surface,
+    borderWidth: 1,
+    borderColor: tokens.borderStrong,
+    borderRadius: 20,
+  },
+  starWrap: {
+    width: STAR_SIZE,
+    height: STAR_SIZE,
+  },
+  starBase: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: STAR_SIZE,
+    fontSize: STAR_SIZE,
+    lineHeight: STAR_SIZE,
+    color: tokens.surface3,
+    textAlign: 'center',
+  },
+  starFillClip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    overflow: 'hidden',
+  },
+  starFill: {
+    width: STAR_SIZE,
+    fontSize: STAR_SIZE,
+    lineHeight: STAR_SIZE,
+    color: tokens.brand,
+    textAlign: 'left',
+  },
+  hint: {
+    marginTop: 16,
+    fontSize: 13,
+    fontWeight: '600',
+    color: tokens.text2,
+    letterSpacing: -0.1,
+  },
+  a11yRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
+  a11yBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: tokens.borderStrong,
+  },
+  a11yBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: tokens.text2,
+  },
+});
