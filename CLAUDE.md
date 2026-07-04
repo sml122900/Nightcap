@@ -19,3 +19,148 @@
 **알려진 제약**
 - 목데이터 단계라 `asset_id`/`image_uri`가 항상 비어있어 사진첩 일괄 삭제·purge 로직은 코드는 정확하지만 아직 실제 파일에 대해 동작하지 않음(실 캡처 파이프라인 붙으면 그대로 동작)
 - 별점 모드 손맛/접근성은 실기기 육안·TalkBack 확인이 아직 필요
+
+---
+
+# CLAUDE.md — 프로젝트 컨텍스트
+
+> 이 파일은 Claude Code가 항상 읽는 프로젝트 개요다.
+
+## 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+# Role & Tone: Caveman Mode (Extreme Conciseness)
+- Speak like a caveman: Remove all fluff, pleasantries, introductory, and concluding remarks.
+- Do not say "Sure, I can help with that" or "Here is the solution."
+- Eliminate articles (a, an, the) and filler words where possible, but maintain precise technical/coding terms.
+- Focus ONLY on the core answer, solution, or code snippet.
+
+
+
+- Reduce output token usage by 70%+.
+- Deliver immediate value without making me read a textbook.
+
+---
+
+프로젝트: Nightcap (스와이프 정리 + 별점 아카이브 앱)
+
+한 줄 정의
+폰 보다가 마주친 모든 콘텐츠를 1탭으로 캡처해두고, 자기 전에 스와이프로 별점 정리하는 Android/iOS 앱.
+정체성: "평점 앱"이 아니라 **도파민 루프의 출구** — 무한 피드와 같은 손맛(스와이프)을 주되, 오늘 캡처한 만큼만 있어서 반드시 끝나는 피드.
+차별점: 정리 세션 종료 시 사진첩 원본도 일괄 삭제(사진첩 청소가 부가가치).
+
+문서 체계 (세션 시작 시 이 순서로 읽을 것)
+1. CLAUDE.md 진행상황 섹션 — 현재 어디까지 됐는지 (가변 상태. 작업 완료 시 갱신 필수)
+2. PROJECT.md — 코어 루프, 화면 명세, 데이터 모델, 스와이프 엔진 스펙, 마일스톤
+3. docs/decisions/ — 기술 결정과 그 근거 (예: 왜 클래스 기반 MediaLibrary API인지, 왜 휴지통을 deleted_at 시간창으로 필터하는지)
+4. docs/troubleshooting/ — 환경/빌드 삽질 기록
+5. docs/par-materials.md — 이력서 소재
+
+핵심 원칙 (모든 작업에서 지킬 것)
+
+스와이프 엔진 손맛이 제품의 생명: 임계값·회전 계수·스프링 커브는 PROJECT.md §6와 `app/src/constants/swipeEngine.ts`가 유일한 소스.
+- 재튜닝은 도그푸딩 후 사용자가 확정한다. 임의 변경 금지 (프로토타입 검증값).
+- 상수는 이 파일에서만 가져다 쓴다. 컴포넌트에 하드코딩 금지.
+
+삭제는 파괴적 동작 — 사진첩 원본 삭제는 스와이프 시점이 아니라 정리 세션 종료 시 일괄 처리(PROJECT.md §8).
+- "`deleted_at` 존재 + asset이 사진첩에 아직 남아있음" 조건으로 항상 재구성 가능해야 함(강제종료 유실 방지). 별도 pending 테이블 금지.
+
+휴지통 조회는 `image_uri` 존재가 아니라 `deleted_at` 시간창(7일)으로 필터한다.
+- 이유: 목데이터 단계에선 `image_uri`가 항상 비어있어, 존재 여부로 필터하면 휴지통 화면이 영구히 비어 검증이 불가능해짐(`docs/decisions/trash-retention-query.md`).
+
+SQLite 스키마 변경은 `PRAGMA user_version` 마이그레이션 러너(`app/src/db/migrations.ts`)의 `MIGRATIONS` 배열에 추가하는 방식으로만 한다.
+- `CREATE TABLE IF NOT EXISTS`로 스키마를 바꾸지 않는다 — 기존 설치본에 안전하게 적용할 방법이 없어짐.
+
+라이브러리가 설치돼 있다고 최신 API라고 가정하지 않는다.
+- `app/AGENTS.md`: Expo SDK57 API는 자주 바뀐다. 코드 작성 전 실제 `.d.ts` 또는 버전별 공식 문서(`docs.expo.dev/versions/v57.0.0/`)로 시그니처를 확인한다.
+- 예: `expo-media-library`/`expo-file-system`의 구 자유 함수(`deleteAssetsAsync`, `FileSystem.deleteAsync`)는 SDK57에서 legacy로 이동/런타임 예외 대상 — 클래스 기반 API(`Asset.delete`, `new File(uri).delete()`)로 교체됨.
+
+전부 로컬: 서버·계정·API 호출 없음. Supabase 동기화/공유 링크는 v2 백로그(PROJECT.md §9 "제외" 목록) — 사용자 확인 없이 착수 금지.
+
+기술 스택 (변경 시 반드시 사용자에게 확인)
+
+- Expo SDK 57 + TypeScript, `expo-dev-client` 필수 (Expo Go 사용 불가 — 사진첩 삭제·플로팅 버블 등 코어 기능이 Expo Go 밖)
+- `react-native-gesture-handler` + `react-native-reanimated` 4 — 스와이프 엔진
+- `expo-haptics`(판정 햅틱), `expo-media-library`(스크린샷 스캔/삭제, 클래스 기반 API), `expo-sqlite`(휴지통/보관함), `expo-file-system`(`new File(...)`)
+- 네이티브 빌드 전 새 셸에서는 `JAVA_HOME`/`ANDROID_HOME` export 여부 확인(`docs/troubleshooting/gradle-java-android-home-missing.md`)
+
+도메인 모델 (`app/src/db/types.ts` / PROJECT.md §7 — 단일 소스)
+
+- `captures` 테이블: `id`, `created_at`, `triaged_at`(null=아직 스택에 있음), `deleted_at`(휴지통 진입 시각), `image_uri`, `asset_id`, `source_app`/`source_url`, `title`, `stars`(0.5~5.0), `verdict`(rated/hold/drop), `held_count`, `is_drm`, `kind`(video/text/drm), `channel`, `progress`
+- 보류(hold): `triaged_at` NULL 유지 + `held_count` 증가로 다음 날 스택에 자동 재등장 — 별도 이월 테이블 없음
+- 평가 생략 기본값 = 2.5 (별점 모드에서 바 바깥 탭)
+- `verdict='drop'` 행은 통계용으로 유지, 7일 경과 후 이미지 파일만 purge(행 자체는 유지)
+
+지뢰 목록 (밟았던 버그/삽질 — 재발 금지)
+
+- Metro `/status` 200 응답만 보고 "내 프로젝트 서버"라고 가정 금지 — 다른 프로젝트(`power-nap`)의 좀비 Metro가 8081을 점유했던 사례. 의심되면 실제 번들 엔드포인트(`/index.ts.bundle?...`) 응답에 찍히는 origin 경로로 확인(`docs/troubleshooting/stray-metro-process-wrong-project.md`).
+- 새 Bash 셸엔 `JAVA_HOME`/`ANDROID_HOME`이 비어있을 수 있다 — 네이티브 리빌드 전 매번 확인.
+- 목데이터(`MOCK_CAPTURES`) 단계라 `asset_id`/`image_uri`가 항상 비어있음 — 사진첩 일괄 삭제·purge 로직은 코드는 맞아도 아직 실제 파일에는 동작하지 않는다는 걸 잊지 말 것.
+
+코드 규칙
+
+- 커밋은 작은 단위로, conventional 메시지 유지(`feat:`/`fix:`/`docs:`/`chore:`)
+- 색상·radius는 `app/src/constants/tokens.ts` 토큰만(프로토타입 CSS 변수와 1:1 매핑 유지, PROJECT.md §5). 하드코딩 금지.
+- 스와이프 엔진 수치는 `app/src/constants/swipeEngine.ts`만(PROJECT.md §6). 컴포넌트에 하드코딩 금지.
+
+현재 단계
+CLAUDE.md "진행상황" 섹션 참고. (이 프로젝트 컨텍스트 블록에는 상태를 적지 않는다 — 진행상황 섹션이 가변 상태다.)
