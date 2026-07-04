@@ -4,10 +4,14 @@ import { CaptureRow, rowToCapture, verdictToDb } from './types';
 
 const TRASH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** 오늘의 스택: 미판정(triaged_at NULL) 항목, 보류 횟수 높은 순 (PROJECT.md §7). */
+/**
+ * 오늘의 스택: 미판정(triaged_at NULL) 항목, 생성 시각 순. `held_count`는 더 이상
+ * 어디서도 증가시키지 않아(← 스와이프가 즉시 rate@2.5로 커밋됨,
+ * docs/decisions/hold-becomes-quick-rate.md) 정렬 기준에서 제외.
+ */
 export async function getTodayStack(db: SQLiteDatabase): Promise<Capture[]> {
   const rows = await db.getAllAsync<CaptureRow>(
-    `SELECT * FROM captures WHERE triaged_at IS NULL ORDER BY held_count DESC, created_at ASC`
+    `SELECT * FROM captures WHERE triaged_at IS NULL ORDER BY created_at ASC`
   );
   return rows.map(rowToCapture);
 }
@@ -19,9 +23,7 @@ export async function applyVerdict(
   stars?: number
 ): Promise<void> {
   const now = Date.now();
-  if (verdict === 'hold') {
-    await db.runAsync(`UPDATE captures SET held_count = held_count + 1 WHERE id = ?`, id);
-  } else if (verdict === 'drop') {
+  if (verdict === 'drop') {
     await db.runAsync(
       `UPDATE captures SET verdict = ?, triaged_at = ?, deleted_at = ? WHERE id = ?`,
       verdictToDb('drop'),
@@ -41,15 +43,11 @@ export async function applyVerdict(
 }
 
 /** 오른쪽 스와이프(이전): 직전 판정을 되돌려 카드를 다시 미판정 상태로 되돌림. */
-export async function undoVerdict(db: SQLiteDatabase, id: string, verdict: Verdict): Promise<void> {
-  if (verdict === 'hold') {
-    await db.runAsync(`UPDATE captures SET held_count = held_count - 1 WHERE id = ?`, id);
-  } else {
-    await db.runAsync(
-      `UPDATE captures SET verdict = NULL, stars = NULL, triaged_at = NULL, deleted_at = NULL WHERE id = ?`,
-      id
-    );
-  }
+export async function undoVerdict(db: SQLiteDatabase, id: string): Promise<void> {
+  await db.runAsync(
+    `UPDATE captures SET verdict = NULL, stars = NULL, triaged_at = NULL, deleted_at = NULL WHERE id = ?`,
+    id
+  );
 }
 
 export async function getLibrary(db: SQLiteDatabase, minStars?: number): Promise<(Capture & { stars: number })[]> {

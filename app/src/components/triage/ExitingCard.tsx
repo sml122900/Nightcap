@@ -7,14 +7,21 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { tokens } from '../../constants/tokens';
-import { EXIT_DURATION, EXIT_EASING, EXIT_TARGETS, RATE_DOCK, ROT } from '../../constants/swipeEngine';
-import { Capture, Verdict } from '../../types/capture';
+import { EXIT_DURATION, EXIT_EASING, EXIT_TARGETS, ROT } from '../../constants/swipeEngine';
+import { Capture } from '../../types/capture';
 import { CardContent } from './CardContent';
 import { VerdictOverlay } from './VerdictOverlay';
 
+/**
+ * Exit-animation direction — presentation only, decoupled from the committed Verdict.
+ * A ← swipe ('hold') and the rate-mode modal's skip button both commit verdict='rate'
+ * now, but they still exit differently (fly left vs fly up) (docs/decisions/hold-becomes-quick-rate.md).
+ */
+export type ExitKind = 'hold' | 'drop' | 'rate';
+
 interface ExitingCardProps {
   item: Capture;
-  verdict: Verdict;
+  kind: ExitKind;
   /** drag position at release — 0,0 when triggered via button/keyboard, not a drag. Ignored for 'rate'. */
   fromX: number;
   fromY: number;
@@ -23,18 +30,19 @@ interface ExitingCardProps {
 
 /**
  * A departing card animates independently of the deck so the next card can promote immediately.
- * 'rate' commits from the docked position (RATE_DOCK) with no label overlay — the rate-mode layer
- * already closed before this mounts, matching nightcap-prototype.html's resolveCard('rate', v).
+ * 'rate' commits with no label overlay — the rate-mode modal already closed before this mounts,
+ * and starts from center since the deck card is never docked/transformed while rating
+ * (docs/decisions/rate-mode-modal-not-docking.md), matching nightcap-prototype.html's resolveCard('rate', v).
  */
-export function ExitingCard({ item, verdict, fromX, fromY, onDone }: ExitingCardProps) {
-  const isRate = verdict === 'rate';
-  const x = useSharedValue(isRate ? 0 : fromX);
-  const y = useSharedValue(isRate ? RATE_DOCK.y : fromY);
-  const rotate = useSharedValue(isRate ? 0 : fromX * ROT);
-  const scale = useSharedValue(isRate ? RATE_DOCK.scale : 1);
+export function ExitingCard({ item, kind, fromX, fromY, onDone }: ExitingCardProps) {
+  const isRate = kind === 'rate';
+  const x = useSharedValue(fromX);
+  const y = useSharedValue(fromY);
+  const rotate = useSharedValue(fromX * ROT);
+  const scale = useSharedValue(1);
 
   useEffect(() => {
-    const target = EXIT_TARGETS[verdict];
+    const target = EXIT_TARGETS[kind];
     x.value = withTiming(target.x, { duration: EXIT_DURATION, easing: EXIT_EASING });
     y.value = withTiming(target.y, { duration: EXIT_DURATION, easing: EXIT_EASING });
     rotate.value = withTiming(target.rotate, { duration: EXIT_DURATION, easing: EXIT_EASING });
@@ -56,7 +64,7 @@ export function ExitingCard({ item, verdict, fromX, fromY, onDone }: ExitingCard
   return (
     <Animated.View style={[styles.card, cardStyle]} pointerEvents="none">
       <CardContent item={item} />
-      {isRate ? null : <VerdictOverlay type={verdict === 'hold' ? 'hold' : 'drop'} style={{ opacity: 1 }} />}
+      {isRate ? null : <VerdictOverlay type={kind === 'hold' ? 'hold' : 'drop'} style={{ opacity: 1 }} />}
     </Animated.View>
   );
 }

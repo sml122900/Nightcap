@@ -27,15 +27,11 @@ export function DoneScreen({ session, topApp, onOpenLibrary, onRestart }: DoneSc
 
         <View style={styles.rows}>
           <Row label="평가한 캡처" value={String(session.rated)} />
-          <Row label="보류 · 내일로 이월" value={String(session.hold)} dim />
           <Row label="삭제 · 사진첩에서 제거" value={String(session.drop)} dim />
           <Row label="최다 출처" value={topApp ?? '—'} />
         </View>
 
-        <Text style={styles.note}>
-          삭제한 {session.drop}장은 휴지통에 7일 보관 후 완전히 지워져요.
-          {session.hold ? `\n보류한 ${session.hold}장은 내일 스택 맨 위에서 다시 만나요.` : ''}
-        </Text>
+        <Text style={styles.note}>삭제한 {session.drop}장은 휴지통에 7일 보관 후 완전히 지워져요.</Text>
       </View>
 
       <View style={styles.actions}>

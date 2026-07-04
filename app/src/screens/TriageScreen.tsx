@@ -6,6 +6,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { tokens } from '../constants/tokens';
 import { applyVerdict, getTodayStack, undoVerdict } from '../db/queries';
 import { resetDemoData } from '../db/seed';
+import { enqueueWrite } from '../db/writeQueue';
 import { syncPendingAssetDeletes } from '../services/trash';
 import { AccessibleControls } from '../components/triage/AccessibleControls';
 import { TriageDeck, TriageDeckHandle } from '../components/triage/TriageDeck';
@@ -13,7 +14,7 @@ import { DoneScreen } from './DoneScreen';
 import { Capture, TriageHistoryEntry, TriageSession, Verdict } from '../types/capture';
 import { fireVerdictHaptic } from '../utils/haptics';
 
-const EMPTY_SESSION: TriageSession = { rated: 0, sum: 0, hold: 0, drop: 0, apps: {} };
+const EMPTY_SESSION: TriageSession = { rated: 0, sum: 0, drop: 0, apps: {} };
 const TOAST_DURATION = 1800;
 
 function bumpApps(apps: Record<string, number>, app: string, delta: number) {
@@ -62,13 +63,16 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
 
   const handleCommit = (item: Capture, verdict: Verdict, stars?: number) => {
     fireVerdictHaptic(verdict);
-    applyVerdict(db, item.id, verdict, stars).catch((err) => console.warn('[triage] applyVerdict failed', err));
+    // Serialized per-item (not just fire-and-forget) so a same-item undo issued right
+    // after can't race ahead of this write and land first (see docs/troubleshooting).
+    enqueueWrite(item.id, () => applyVerdict(db, item.id, verdict, stars)).catch((err) =>
+      console.warn('[triage] applyVerdict failed', err)
+    );
     setQueue((q) => (q ? q.slice(1) : q));
     setHistory((h) => [...h, { item, verdict, stars }]);
     setSession((s) => ({
       rated: s.rated + (verdict === 'rate' ? 1 : 0),
       sum: s.sum + (verdict === 'rate' ? stars ?? 0 : 0),
-      hold: s.hold + (verdict === 'hold' ? 1 : 0),
       drop: s.drop + (verdict === 'drop' ? 1 : 0),
       apps: bumpApps(s.apps, item.app, 1),
     }));
@@ -85,13 +89,14 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
       return;
     }
     const last = history[history.length - 1];
-    undoVerdict(db, last.item.id, last.verdict).catch((err) => console.warn('[triage] undoVerdict failed', err));
+    enqueueWrite(last.item.id, () => undoVerdict(db, last.item.id)).catch((err) =>
+      console.warn('[triage] undoVerdict failed', err)
+    );
     setHistory((h) => h.slice(0, -1));
     setQueue((q) => (q ? [last.item, ...q] : q));
     setSession((s) => ({
       rated: s.rated - (last.verdict === 'rate' ? 1 : 0),
       sum: s.sum - (last.verdict === 'rate' ? last.stars ?? 0 : 0),
-      hold: s.hold - (last.verdict === 'hold' ? 1 : 0),
       drop: s.drop - (last.verdict === 'drop' ? 1 : 0),
       apps: bumpApps(s.apps, last.item.app, -1),
     }));

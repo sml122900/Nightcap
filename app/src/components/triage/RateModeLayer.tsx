@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   FadeIn,
   measure,
@@ -14,17 +14,27 @@ import Animated, {
 } from 'react-native-reanimated';
 import { tokens } from '../../constants/tokens';
 import { RATE_DEFAULT_VALUE, rateValueFromRatio } from '../../constants/swipeEngine';
+import { Capture } from '../../types/capture';
 
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 interface RateModeLayerProps {
+  item: Capture;
   /** prefill value carried over from the drag that triggered rate mode */
   prefill: number;
   onCommit: (value: number) => void;
+  /** Android back button / dismiss without a verdict — the card stack is untouched */
+  onCancel: () => void;
 }
 
-/** Ported from nightcap-prototype.html's #rate-layer / initRateStars / enterRateMode. */
-export function RateModeLayer({ prefill, onCommit }: RateModeLayerProps) {
+/**
+ * Ported from nightcap-prototype.html's #rate-layer / initRateStars / enterRateMode, but
+ * rendered in a real Modal instead of an absolutely-positioned zIndex layer: on Android,
+ * bumping the live deck card's zIndex above this layer's didn't reliably win the native
+ * z-order, so the card buried the star bar (docs/decisions/rate-mode-modal-not-docking.md).
+ * A Modal renders in its own native window, so it's guaranteed to sit above the deck.
+ */
+export function RateModeLayer({ item, prefill, onCommit, onCancel }: RateModeLayerProps) {
   const value = useSharedValue(prefill);
   const starsRef = useAnimatedRef<Animated.View>();
   const [accessibleValue, setAccessibleValue] = useState(prefill);
@@ -75,53 +85,84 @@ export function RateModeLayer({ prefill, onCommit }: RateModeLayerProps) {
   }));
 
   return (
-    <GestureDetector gesture={backgroundTap}>
-      <Animated.View style={styles.layer} entering={FadeIn.duration(150)} accessibilityViewIsModal>
-        <AnimatedTextInput
-          editable={false}
-          defaultValue={prefill.toFixed(1)}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          animatedProps={valueProps as any}
-          style={styles.value}
-          underlineColorAndroid="transparent"
-        />
-        <GestureDetector gesture={starPan}>
-          <Animated.View
-            ref={starsRef}
-            style={styles.starsRow}
-            accessible
-            accessibilityRole="adjustable"
-            accessibilityLabel="별점"
-            accessibilityValue={{ min: 0.5, max: 5, now: accessibleValue }}
-            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-            onAccessibilityAction={handleAccessibilityAction}
-          >
-            {[0, 1, 2, 3, 4].map((i) => (
-              <RateStar key={i} index={i} value={value} />
-            ))}
+    <Modal visible transparent statusBarTranslucent animationType="fade" onRequestClose={onCancel}>
+      {/* RN's Modal renders into its own native window, outside the app's root
+          GestureHandlerRootView — without this, Pan gestures here never activate
+          (only plain touchables/the outer Tap fire), so star-bar drag silently no-ops. */}
+      <GestureHandlerRootView style={styles.rootView}>
+        <GestureDetector gesture={backgroundTap}>
+          <Animated.View style={styles.layer} entering={FadeIn.duration(150)} accessibilityViewIsModal>
+            <MiniPreview item={item} />
+            <AnimatedTextInput
+              editable={false}
+              defaultValue={prefill.toFixed(1)}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              animatedProps={valueProps as any}
+              style={styles.value}
+              underlineColorAndroid="transparent"
+            />
+            <GestureDetector gesture={starPan}>
+              <Animated.View
+                ref={starsRef}
+                style={styles.starsRow}
+                accessible
+                accessibilityRole="adjustable"
+                accessibilityLabel="별점"
+                accessibilityValue={{ min: 0.5, max: 5, now: accessibleValue }}
+                accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+                onAccessibilityAction={handleAccessibilityAction}
+              >
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <RateStar key={i} index={i} value={value} />
+                ))}
+              </Animated.View>
+            </GestureDetector>
+            <Text style={styles.hint}>드래그로 조정 · 바깥을 탭하면 2.5점</Text>
+            <View style={styles.a11yRow}>
+              <Pressable
+                onPress={() => commit(value.value)}
+                style={styles.a11yBtn}
+                accessibilityRole="button"
+                accessibilityLabel="별점 확정"
+              >
+                <Text style={styles.a11yBtnText}>확정</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => commit(RATE_DEFAULT_VALUE)}
+                style={styles.a11yBtn}
+                accessibilityRole="button"
+                accessibilityLabel="평가 생략, 2.5점으로 저장"
+              >
+                <Text style={styles.a11yBtnText}>평가 생략 (2.5점)</Text>
+              </Pressable>
+            </View>
           </Animated.View>
         </GestureDetector>
-        <Text style={styles.hint}>드래그로 조정 · 바깥을 탭하면 2.5점</Text>
-        <View style={styles.a11yRow}>
-          <Pressable
-            onPress={() => commit(value.value)}
-            style={styles.a11yBtn}
-            accessibilityRole="button"
-            accessibilityLabel="별점 확정"
-          >
-            <Text style={styles.a11yBtnText}>확정</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => commit(RATE_DEFAULT_VALUE)}
-            style={styles.a11yBtn}
-            accessibilityRole="button"
-            accessibilityLabel="평가 생략, 2.5점으로 저장"
-          >
-            <Text style={styles.a11yBtnText}>평가 생략 (2.5점)</Text>
-          </Pressable>
-        </View>
-      </Animated.View>
-    </GestureDetector>
+      </GestureHandlerRootView>
+    </Modal>
+  );
+}
+
+/** Small stand-in for the real deck card, shown at the top of the modal (PROJECT.md §6). */
+function MiniPreview({ item }: { item: Capture }) {
+  return (
+    <View style={styles.miniPreview} pointerEvents="none">
+      <View style={styles.miniThumb}>
+        {item.kind === 'drm' ? (
+          <Text style={styles.miniDrmLabel}>🔒</Text>
+        ) : (
+          <View style={styles.miniAvatar} />
+        )}
+      </View>
+      <View style={styles.miniMeta}>
+        <Text style={styles.miniTitle} numberOfLines={1}>
+          {item.title}
+        </Text>
+        <Text style={styles.miniSrc} numberOfLines={1}>
+          {item.app} · {item.src}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -142,17 +183,60 @@ function RateStar({ index, value }: { index: number; value: SharedValue<number> 
 const STAR_SIZE = 36;
 
 const styles = StyleSheet.create({
+  rootView: {
+    flex: 1,
+  },
   layer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 20,
+    flex: 1,
     backgroundColor: 'rgba(0,0,0,0.82)',
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: 110,
+  },
+  miniPreview: {
+    position: 'absolute',
+    top: 60,
+    left: 24,
+    right: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: tokens.surface,
+    borderWidth: 1,
+    borderColor: tokens.borderStrong,
+    borderRadius: 16,
+    padding: 12,
+  },
+  miniThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: tokens.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: tokens.surface3,
+  },
+  miniDrmLabel: {
+    fontSize: 18,
+  },
+  miniMeta: {
+    flex: 1,
+  },
+  miniTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: tokens.text,
+    letterSpacing: -0.2,
+  },
+  miniSrc: {
+    marginTop: 2,
+    fontSize: 12,
+    color: tokens.text3,
   },
   value: {
     fontSize: 60,

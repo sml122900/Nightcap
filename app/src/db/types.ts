@@ -21,7 +21,7 @@ export interface CaptureRow {
 }
 
 /** DB verdict column value ↔ UI Verdict ('rate' is the swipe-engine's action verb). */
-export function verdictToDb(verdict: Verdict): 'rated' | 'hold' | 'drop' {
+export function verdictToDb(verdict: Verdict): 'rated' | 'drop' {
   return verdict === 'rate' ? 'rated' : verdict;
 }
 

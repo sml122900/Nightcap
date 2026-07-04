@@ -10,7 +10,7 @@
 ## 1. 코어 루프
 
 1. **낮 (캡처)** — 유저가 콘텐츠를 보다가 최소 동작으로 캡처를 쌓음. 흐름을 0.5초도 끊지 않음. 화면 전환 없음, 피드백은 진동/알림뿐.
-2. **밤 (정리)** — 앱을 열면 오늘의 스택이 카드로 쌓여 있음. **왼쪽 = 보류(내일 스택으로 이월) / 오른쪽 = 이전 항목(직전 판정 취소 후 복귀) / 아래 = 삭제(휴지통행) / 위 = 별점 모드 진입**. 삭제한 캡처는 휴지통에 7일간 보관 후 완전 삭제 — **사진첩 원본도 정리 세션 종료 시 일괄 삭제**(사진첩 청소가 부가가치).
+2. **밤 (정리)** — 앱을 열면 오늘의 스택이 카드로 쌓여 있음. **왼쪽 = 빠른 평가(별점 모드 없이 즉시 2.5점 커밋) / 오른쪽 = 이전 항목(직전 판정 취소 후 복귀) / 아래 = 삭제(휴지통행) / 위 = 별점 모드 진입**. 삭제한 캡처는 휴지통에 7일간 보관 후 완전 삭제 — **사진첩 원본도 정리 세션 종료 시 일괄 삭제**(사진첩 청소가 부가가치).
 3. **끝 (요약)** — Wrapped식 요약("8장을 1.5분 만에 / 평균 ★3.8 / 최다 출처 릴스") → 공유 카드 생성.
 4. **나중 (보관함)** — 별점 필터로 재열람, 친구/가족 공유. 하단 "휴지통 N" 진입점에서 7일 이내 삭제 항목을 복원할 수 있음.
 
@@ -106,7 +106,7 @@ export const tokens = {
 
 | 방향 | 동작 | 비고 |
 |---|---|---|
-| ← 왼쪽 | 보류 | 오늘 판정 안 함, 내일 스택으로 이월 |
+| ← 왼쪽 | 빠른 평가 | 별점 모드 없이 즉시 2.5점(평가 생략 기본값)으로 커밋 — "후딱후딱" 넘기기용. 더 이상 이월하지 않음(`docs/decisions/hold-becomes-quick-rate.md`) |
 | → 오른쪽 | 이전 항목 | 직전 판정을 되돌리고 그 카드를 맨 위로 (이력 없으면 스프링백 + 토스트) |
 | ↓ 아래 | 삭제 | 사진첩에서도 제거. 실수 방지 위해 임계값 높게 |
 | ↑ 위 | 별점 모드 진입 | 아래 상세 |
@@ -115,13 +115,11 @@ export const tokens = {
 const TH_X = 92;        // 좌우 판정 임계값 (px)
 const TH_DOWN = 110;    // 아래(삭제) — 좌우보다 높게, 파괴적 동작 보호
 const TH_UP = 110;      // 위(별점 모드 진입)
-const RATE_SPAN = 230;  // 위 드래그 거리 → 프리필 별점 매핑 (230px = 5.0)
 const ROT = 0.055;      // rotate(deg) = dx * ROT (가로 이동에만 적용)
 // 축 분리: upness = max(0, -dy - |dx|*0.6), downness = max(0, dy - |dx|*0.6)
-// 프리필: clamp(round(upness/RATE_SPAN*5*2)/2, 0.5, 5.0)  — 0.5 단위
 // 복원 스프링: cubic-bezier(.2, 1.4, .3, 1) 0.4s
-// 퇴장 0.38s: hold→(-480,-30,-20deg) / drop→(0,+640,5deg) / rate→(0,-660,-4deg,scale 1.04)
-// 햅틱: rate = notificationSuccess, hold/drop = impactLight
+// 퇴장 0.38s: hold(←빠른평가, 커밋은 rate)→(-480,-30,-20deg) / drop→(0,+640,5deg) / rate→(0,-660,-4deg,scale 1.04)
+// 햅틱: rate = notificationSuccess, drop = impactLight (← 빠른 평가도 커밋은 rate라 notificationSuccess)
 
 const DEPTH_SCALE_STEP = 0.045;        // 뒤 카드: scale(1 - depth*DEPTH_SCALE_STEP)
 const DEPTH_TRANSLATE_Y_STEP = 14;     // 뒤 카드: translateY(depth*DEPTH_TRANSLATE_Y_STEP)
@@ -129,11 +127,12 @@ const DEPTH_TRANSITION_DURATION = 350; // 카드 스택 전환 0.35s
 const DEPTH_EASING = 'cubic-bezier(.2, .8, .2, 1)';
 ```
 
-**별점 모드**: 위 스와이프가 TH_UP을 넘기면 카드가 상단에 도킹(translateY -152, scale .9)되고 별 5개 바가 나타남.
+**별점 모드**: 위 스와이프가 TH_UP을 넘기면 덱의 카드는 중앙으로 스프링백(도킹 없음)하고, RN `Modal`(transparent, statusBarTranslucent)이 모든 뷰 위에 떠서 미니 프리뷰(썸네일/스켈레톤+제목+출처) + 별 5개 바를 보여줌 — **항상 2.5(평가 생략 기본값)로 시작**해서 나타남 — 드래그 거리 기반 프리필은 없음(고정된 드래그 구간이 0.5~5.0 전체를 선형으로 커버할 수 없어 플릭만으로는 5.0에 도달 불가능한 설계 결함이었음).
+- ~~카드가 상단에 도킹(translateY -152, scale .9)~~은 최초 설계였으나 Android에서 zIndex로 카드를 별점 레이어 위에 띄우는 방식이 z-order를 보장하지 못해(`docked ? 30 : 10 - depth`가 레이어의 zIndex 20보다 커짐) Modal 방식으로 교체됨 — `docs/decisions/rate-mode-modal-not-docking.md`
 - 별 바를 가로 드래그 → 0.5 단위로 값 조정(반 별 채움), 손을 떼면 그 값으로 확정
 - **바 바깥 아무 곳 탭 = 2.5점 고정 저장** (평가 생략의 기본값)
-- 위 드래그 거리가 프리필 값이 되므로, 강하게 플릭하면 높은 별점이 미리 선택된 채 진입
 - 별점 모드 중 덱 드래그는 잠금
+- Android 백버튼(Modal `onRequestClose`) = 평가 취소, 카드 스택 유지(커밋 아님)
 
 - 카드 스택: 상위 3장 렌더, 뒤 카드는 `DEPTH_SCALE_STEP`/`DEPTH_TRANSLATE_Y_STEP`/`DEPTH_TRANSITION_DURATION`/`DEPTH_EASING` (위 코드 블록).
 - 접근성: 스와이프 대신 버튼 4개(보류/삭제/별점/이전)로도 판정 가능하게 (VoiceOver/TalkBack). 별점 모드는 키보드 ←→ 0.5 조정 / Enter 확정 / Esc 2.5와 동일한 시맨틱 — 조정/확정/생략(바깥 탭) 모두 스크린리더로 접근 가능해야 함.
@@ -155,7 +154,7 @@ CREATE TABLE captures (
   title         TEXT,                      -- DRM/수동 입력, nullable
   stars         REAL,                      -- 0.5~5.0 (0.5 단위), null = 무평점
   verdict       TEXT CHECK(verdict IN ('rated','hold','drop')),
-  held_count    INTEGER DEFAULT 0,         -- 보류 횟수 (이월 시 +1)
+  held_count    INTEGER DEFAULT 0,         -- 미사용(과거 "보류=내일 이월" 흔적, 아래 각주)
   is_drm        INTEGER DEFAULT 0,
   kind          TEXT NOT NULL DEFAULT 'video' CHECK(kind IN ('video','text','drm')),
   channel       TEXT,                      -- 출처 채널/핸들 (예: '@요리하는_공대생'), source_url과 별개
@@ -167,8 +166,8 @@ CREATE INDEX idx_captures_trash ON captures(deleted_at) WHERE deleted_at IS NOT 
 ```
 
 - `kind`/`channel`/`progress`는 위 §7 초안에 없던 컬럼: `is_drm` 플래그만으로는 video/text를 구분할 수 없고, `source_url`은 채널 핸들과 의미가 달라 카드 렌더링(§6 카드 UI)에 반드시 필요해 마이그레이션 1에 포함시켰다.
-- **보류(hold)**: triaged_at을 NULL로 유지 + held_count 증가 → 다음 날 스택 쿼리에 자동 포함(held_count 높은 순으로 맨 위 정렬). 별도 이월 테이블 불필요.
-- 평가 생략 기본값 = 2.5 (별점 모드에서 바깥 탭).
+- `verdict` CHECK의 `'hold'`와 `held_count` 컬럼은 과거 "보류=내일 이월" 설계의 흔적으로 스키마에는 남아있지만 더 이상 어떤 코드도 쓰지 않는다(← 스와이프는 즉시 `rated`로 커밋, `docs/decisions/hold-becomes-quick-rate.md`) — 기존 설치본 마이그레이션 비용 대비 이득이 없어 컬럼 제거는 보류.
+- 평가 생략 기본값 = 2.5 (별점 모드 바깥 탭, 그리고 ← 빠른 평가 스와이프 모두 이 값으로 즉시 커밋).
 - verdict 'drop' 행은 통계용으로 남기되, 휴지통 보관 기간(7일) 동안은 image_uri/asset을 유지하고 기간 만료 후 이미지 파일만 삭제(행 자체는 유지).
 - 사진첩 원본 삭제는 스와이프 시점이 아니라 **정리 세션 종료 시 일괄** 처리(§8). 별도 pending 테이블 없이, "`deleted_at`이 있고 asset이 아직 존재" 조건으로 다음 세션에서 재조회해 큐를 재구성할 수 있어야 함(강제종료 유실 대비).
 

@@ -11,7 +11,15 @@ export interface Capture {
   progress?: `${number}%`;
 }
 
-export type Verdict = 'hold' | 'drop' | 'rate';
+/** Committed, DB-facing outcome — 'hold' isn't one: it's translated to rate@2.5 (see GestureAction). */
+export type Verdict = 'drop' | 'rate';
+
+/**
+ * Raw swipe/button action before it's translated into a committed Verdict. 'hold' no
+ * longer defers the card to tomorrow's stack — it commits an instant rate@2.5, so the
+ * card can be triaged without ever opening the rate-mode modal (docs/decisions/hold-becomes-quick-rate.md).
+ */
+export type GestureAction = 'hold' | 'drop';
 
 export interface TriageHistoryEntry {
   item: Capture;
@@ -24,7 +32,6 @@ export interface TriageSession {
   rated: number;
   /** sum of all star ratings — avg = sum / rated */
   sum: number;
-  hold: number;
   drop: number;
   apps: Record<string, number>;
 }

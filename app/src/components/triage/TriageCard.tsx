@@ -16,10 +16,7 @@ import {
   DEPTH_TRANSITION_DURATION,
   DEPTH_TRANSLATE_Y_STEP,
   OVERLAY_DEAD_ZONE,
-  prefillFromUpness,
-  RATE_DOCK,
-  RATE_DOCK_DURATION,
-  RATE_DOCK_EASING,
+  RATE_DEFAULT_VALUE,
   RESTORE_SPRING,
   ROT,
   TH_DOWN,
@@ -27,28 +24,26 @@ import {
   TH_X,
   UPNESS_DX_DAMPING,
 } from '../../constants/swipeEngine';
-import { Capture, Verdict } from '../../types/capture';
+import { Capture, GestureAction } from '../../types/capture';
 import { CardContent } from './CardContent';
-import { RatePreview } from './RatePreview';
 import { VerdictOverlay } from './VerdictOverlay';
 
 interface TriageCardProps {
   item: Capture;
   depth: number;
-  /** true only for the top card while rate mode is open (PROJECT.md §6 docking) */
-  docked: boolean;
-  onResolved: (item: Capture, verdict: Verdict, dx: number, dy: number) => void;
+  /** true only for the top card while the rate-mode modal is open (docs/decisions/rate-mode-modal-not-docking.md) */
+  ratingActive: boolean;
+  onResolved: (item: Capture, action: GestureAction, dx: number, dy: number) => void;
   onEnterRate: (item: Capture, prefill: number) => void;
   onPrev: () => void;
 }
 
 /** The live card: at rest it sits at its stack depth; at depth 0 it's draggable (PROJECT.md §6). */
-export function TriageCard({ item, depth, docked, onResolved, onEnterRate, onPrev }: TriageCardProps) {
+export function TriageCard({ item, depth, ratingActive, onResolved, onEnterRate, onPrev }: TriageCardProps) {
   const isTop = depth === 0;
   const dragX = useSharedValue(0);
   const dragY = useSharedValue(0);
   const depthAnim = useSharedValue(depth);
-  const dockScale = useSharedValue(1);
 
   useEffect(() => {
     depthAnim.value = withTiming(depth, {
@@ -58,16 +53,14 @@ export function TriageCard({ item, depth, docked, onResolved, onEnterRate, onPre
   }, [depth, depthAnim]);
 
   useEffect(() => {
-    if (docked) {
-      dragX.value = withTiming(0, { duration: RATE_DOCK_DURATION, easing: RATE_DOCK_EASING });
-      dragY.value = withTiming(RATE_DOCK.y, { duration: RATE_DOCK_DURATION, easing: RATE_DOCK_EASING });
-      dockScale.value = withTiming(RATE_DOCK.scale, {
-        duration: RATE_DOCK_DURATION,
-        easing: RATE_DOCK_EASING,
-      });
+    // Defensive reset for the a11y "별점" button path, which enters rate mode without a
+    // drag — the pan handler's own reset (below) covers the gesture path.
+    if (ratingActive) {
+      dragX.value = withSpring(0, RESTORE_SPRING);
+      dragY.value = withSpring(0, RESTORE_SPRING);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docked]);
+  }, [ratingActive]);
 
   const upness = useDerivedValue(() =>
     Math.max(0, -dragY.value - Math.abs(dragX.value) * UPNESS_DX_DAMPING)
@@ -75,7 +68,6 @@ export function TriageCard({ item, depth, docked, onResolved, onEnterRate, onPre
   const downness = useDerivedValue(() =>
     Math.max(0, dragY.value - Math.abs(dragX.value) * UPNESS_DX_DAMPING)
   );
-  const ratePreviewValue = useDerivedValue(() => prefillFromUpness(upness.value));
 
   const overlayOpacities = useDerivedValue(() => {
     if (upness.value > OVERLAY_DEAD_ZONE) {
@@ -94,13 +86,13 @@ export function TriageCard({ item, depth, docked, onResolved, onEnterRate, onPre
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [
-      { scale: (1 - depthAnim.value * DEPTH_SCALE_STEP) * dockScale.value },
+      { scale: 1 - depthAnim.value * DEPTH_SCALE_STEP },
       { translateY: depthAnim.value * DEPTH_TRANSLATE_Y_STEP },
       { translateX: dragX.value },
       { translateY: dragY.value },
       { rotate: `${dragX.value * ROT}deg` },
     ],
-    zIndex: docked ? 30 : 10 - depth,
+    zIndex: 10 - depth,
   }));
 
   const holdStyle = useAnimatedStyle(() => ({ opacity: overlayOpacities.value.hold }));
@@ -108,8 +100,8 @@ export function TriageCard({ item, depth, docked, onResolved, onEnterRate, onPre
   const dropStyle = useAnimatedStyle(() => ({ opacity: overlayOpacities.value.drop }));
   const rateStyle = useAnimatedStyle(() => ({ opacity: overlayOpacities.value.rate }));
 
-  function resolve(verdict: Verdict, dx: number, dy: number) {
-    onResolved(item, verdict, dx, dy);
+  function resolve(action: GestureAction, dx: number, dy: number) {
+    onResolved(item, action, dx, dy);
   }
 
   function enterRate(prefill: number) {
@@ -117,7 +109,7 @@ export function TriageCard({ item, depth, docked, onResolved, onEnterRate, onPre
   }
 
   const pan = Gesture.Pan()
-    .enabled(isTop && !docked)
+    .enabled(isTop && !ratingActive)
     .onUpdate((e) => {
       dragX.value = e.translationX;
       dragY.value = e.translationY;
@@ -129,7 +121,14 @@ export function TriageCard({ item, depth, docked, onResolved, onEnterRate, onPre
       const down = Math.max(0, dy - Math.abs(dx) * UPNESS_DX_DAMPING);
 
       if (up > TH_UP) {
-        runOnJS(enterRate)(prefillFromUpness(up));
+        // Rate mode always starts at the skip-default (2.5), never a flick-derived
+        // prefill — a fixed drag distance (TH_UP..deck height) can't linearly span
+        // 0.5..5.0, so any prefill mapping made 5.0 unreachable by flick alone.
+        // Reset the drag so the "rate" verdict-overlay opacity (derived from dragX/dragY)
+        // doesn't linger once the modal opens on top of this card.
+        dragX.value = withSpring(0, RESTORE_SPRING);
+        dragY.value = withSpring(0, RESTORE_SPRING);
+        runOnJS(enterRate)(RATE_DEFAULT_VALUE);
       } else if (down > TH_DOWN) {
         runOnJS(resolve)('drop', dx, dy);
       } else if (dx < -TH_X) {
@@ -152,7 +151,7 @@ export function TriageCard({ item, depth, docked, onResolved, onEnterRate, onPre
           <VerdictOverlay type="hold" style={holdStyle} />
           <VerdictOverlay type="prev" style={prevStyle} />
           <VerdictOverlay type="drop" style={dropStyle} />
-          <RatePreview style={rateStyle} value={ratePreviewValue} />
+          <VerdictOverlay type="rate" style={rateStyle} />
         </>
       ) : null}
     </Animated.View>

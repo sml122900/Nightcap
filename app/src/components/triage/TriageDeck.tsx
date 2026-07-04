@@ -2,15 +2,15 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef,
 import { StyleSheet, Text, View } from 'react-native';
 import { tokens } from '../../constants/tokens';
 import { DECK_VISIBLE_DEPTH, RATE_DEFAULT_VALUE } from '../../constants/swipeEngine';
-import { Capture, Verdict } from '../../types/capture';
+import { Capture, GestureAction, Verdict } from '../../types/capture';
 import { fireEnterRateHaptic } from '../../utils/haptics';
-import { ExitingCard } from './ExitingCard';
+import { ExitingCard, ExitKind } from './ExitingCard';
 import { RateModeLayer } from './RateModeLayer';
 import { TriageCard } from './TriageCard';
 
 export interface TriageDeckHandle {
   /** resolve the current top card without a drag — used by the a11y buttons (보류/삭제) */
-  resolveTop: (verdict: 'hold' | 'drop') => void;
+  resolveTop: (action: GestureAction) => void;
   /** open rate mode on the current top card — used by the a11y 별점 button */
   enterRate: (prefill?: number) => void;
 }
@@ -28,7 +28,8 @@ interface TriageDeckProps {
 interface ExitEntry {
   key: string;
   item: Capture;
-  verdict: Verdict;
+  /** exit-animation direction only — decoupled from the committed Verdict (docs/decisions/hold-becomes-quick-rate.md) */
+  kind: ExitKind;
   fromX: number;
   fromY: number;
 }
@@ -51,10 +52,16 @@ export const TriageDeck = forwardRef<TriageDeckHandle, TriageDeckProps>(function
   }, [rating, onRatingActiveChange]);
 
   const handleResolved = useCallback(
-    (item: Capture, verdict: Verdict, dx: number, dy: number) => {
+    (item: Capture, action: GestureAction, dx: number, dy: number) => {
       const key = `${item.id}-${exitCounter.current++}`;
-      setExiting((prev) => [...prev, { key, item, verdict, fromX: dx, fromY: dy }]);
-      onCommit(item, verdict);
+      setExiting((prev) => [...prev, { key, item, kind: action, fromX: dx, fromY: dy }]);
+      // '보류'(← swipe) no longer defers to tomorrow — it commits an instant rate@2.5
+      // so triage stays a single quick pass (docs/decisions/hold-becomes-quick-rate.md).
+      if (action === 'hold') {
+        onCommit(item, 'rate', RATE_DEFAULT_VALUE);
+      } else {
+        onCommit(item, action);
+      }
     },
     [onCommit]
   );
@@ -69,12 +76,17 @@ export const TriageDeck = forwardRef<TriageDeckHandle, TriageDeckProps>(function
       if (!rating) return;
       const item = rating.item;
       const key = `${item.id}-${exitCounter.current++}`;
-      setExiting((prev) => [...prev, { key, item, verdict: 'rate', fromX: 0, fromY: 0 }]);
+      setExiting((prev) => [...prev, { key, item, kind: 'rate', fromX: 0, fromY: 0 }]);
       setRating(null);
       onCommit(item, 'rate', value);
     },
     [rating, onCommit]
   );
+
+  /** Android back button / modal dismiss with no verdict — card stays on top of the deck. */
+  const handleCancelRating = useCallback(() => {
+    setRating(null);
+  }, []);
 
   const removeExiting = useCallback((key: string) => {
     setExiting((prev) => prev.filter((e) => e.key !== key));
@@ -83,11 +95,11 @@ export const TriageDeck = forwardRef<TriageDeckHandle, TriageDeckProps>(function
   useImperativeHandle(
     ref,
     () => ({
-      resolveTop: (verdict: 'hold' | 'drop') => {
+      resolveTop: (action: GestureAction) => {
         if (rating) return;
         const top = queue[0];
         if (!top) return;
-        handleResolved(top, verdict, 0, 0);
+        handleResolved(top, action, 0, 0);
       },
       enterRate: (prefill = RATE_DEFAULT_VALUE) => {
         if (rating) return;
@@ -118,19 +130,26 @@ export const TriageDeck = forwardRef<TriageDeckHandle, TriageDeckProps>(function
               key={item.id}
               item={item}
               depth={depth}
-              docked={depth === 0 && rating !== null}
+              ratingActive={depth === 0 && rating !== null}
               onResolved={handleResolved}
               onEnterRate={handleEnterRate}
               onPrev={onPrev}
             />
           );
         })}
-      {rating ? <RateModeLayer prefill={rating.prefill} onCommit={handleCommitRating} /> : null}
+      {rating ? (
+        <RateModeLayer
+          item={rating.item}
+          prefill={rating.prefill}
+          onCommit={handleCommitRating}
+          onCancel={handleCancelRating}
+        />
+      ) : null}
       {exiting.map((e) => (
         <ExitingCard
           key={e.key}
           item={e.item}
-          verdict={e.verdict}
+          kind={e.kind}
           fromX={e.fromX}
           fromY={e.fromY}
           onDone={() => removeExiting(e.key)}

@@ -6,30 +6,34 @@ import { tokens } from '../../constants/tokens';
 type AnimatedViewStyle = React.ComponentProps<typeof Animated.View>['style'];
 
 /** live-drag preview labels — 'prev' never resolves to a committed verdict, it's a right-drag hint only */
-export type OverlayKind = 'hold' | 'prev' | 'drop';
+export type OverlayKind = 'hold' | 'prev' | 'drop' | 'rate';
 
 const LABEL: Record<OverlayKind, string> = {
   hold: '보류',
   prev: '이전',
   drop: '삭제',
+  rate: '별점',
 };
 
 const ACCENT: Record<OverlayKind, string> = {
   hold: tokens.text2,
   prev: tokens.text2,
   drop: tokens.danger,
+  rate: tokens.brand,
 };
 
 const BG: Record<OverlayKind, string> = {
   hold: tokens.neutralDim,
   prev: tokens.neutralDim,
   drop: tokens.dangerDim,
+  rate: tokens.brandDim,
 };
 
 const ROTATE: Record<OverlayKind, string> = {
   hold: '-6deg',
   prev: '6deg',
   drop: '0deg',
+  rate: '0deg',
 };
 
 interface VerdictOverlayProps {
