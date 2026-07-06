@@ -4,21 +4,24 @@
 
 ## 진행상황
 
-**완료 (W1, W2 일부)**
+**완료 (W1, W2, W3-1)**
 - 정리 모드 스와이프 엔진: 4방향 제스처(보류/이전/삭제/별점모드) + 별점 모드(도킹+드래그+접근성) — `app/src/components/triage/`, `app/src/constants/swipeEngine.ts`
 - SQLite 영속화 + 마이그레이션 — `app/src/db/`
 - 휴지통(소프트 삭제 7일 + 세션종료 일괄 삭제 + 강제종료 재시도) — `app/src/services/trash.ts`
 - 완료 요약 / 보관함 / 휴지통 화면 — `app/src/screens/`
+- **스크린샷 스캔 파이프라인** — `app/src/services/screenshotScan.ts`: 권한 요청(`photo` 세분화 권한, `accessPrivileges` 부분접근 판별) → `Screenshots` 앨범(+파일명 폴백) 스캔 → 앱 샌드박스 사본 복사 → DRM 휘도 판별(`react-native-image-colors`, 임계값은 `app/src/constants/drm.ts`) → `captures` INSERT. `initDb`가 아닌 `TriageScreen` 마운트/AppState 포그라운드 시점에 비동기 실행(첫 렌더 안 막음), 결과는 기존 스택에 append-only 병합(진행 중 카드/제스처 안 건드림). 권한 거부 화면(`MediaAccessDeniedScreen`)·부분허용 배너(`PartialAccessBanner`) 포함
+- 카드/보관함/휴지통/별점모드 실이미지 렌더(`CoverImage` top-crop 컴포넌트), DRM 카드 제목 직접입력(TextInput)
 
-**진행 중 아님 / 다음 단계 (W2 나머지 ~ W4)**
-- 실제 스크린샷 스캔 파이프라인(MediaLibrary 스캔, DRM 휘도 판별) — 지금은 `MOCK_CAPTURES` 8장으로 시드
+**진행 중 아님 / 다음 단계 (W3 나머지 ~ W4)**
 - 공유 카드 화면(Letterboxd 스타일)
 - 백탭/버블 온보딩(GIF), Android 플로팅 버블 네이티브 모듈
 - 보관함 진짜 메이슨리(현재는 고정 2열 그리드로 단순화됨)
+- `DRM_LUMINANCE_THRESHOLD` 실기기 튜닝(다크모드 오탐 체크 포함, 아직 미검증)
 
 **알려진 제약**
-- 목데이터 단계라 `asset_id`/`image_uri`가 항상 비어있어 사진첩 일괄 삭제·purge 로직은 코드는 정확하지만 아직 실제 파일에 대해 동작하지 않음(실 캡처 파이프라인 붙으면 그대로 동작)
 - 별점 모드 손맛/접근성은 실기기 육안·TalkBack 확인이 아직 필요
+- 릴리즈 빌드는 실기기(Galaxy S24+)에 설치까지 확인됨(2026-07-07). 다만 이건 컴파일+설치 성공일 뿐, 스캔/DRM/휴지통 등 실제 기능 동작은 PROJECT.md W3-1 §7 체크리스트로 아직 수동 검증 전
+- Android `FLAG_SECURE`(넷플릭스 등) 콘텐츠는 스크린샷 자체가 차단돼 스캔 경로로 DRM 카드가 실제로 만들어지는 일은 없음(지뢰 목록 참고) — 검증은 검정 이미지 스샷으로 대체
 
 ---
 
@@ -155,6 +158,9 @@ SQLite 스키마 변경은 `PRAGMA user_version` 마이그레이션 러너(`app/
 - Metro `/status` 200 응답만 보고 "내 프로젝트 서버"라고 가정 금지 — 다른 프로젝트(`power-nap`)의 좀비 Metro가 8081을 점유했던 사례. 의심되면 실제 번들 엔드포인트(`/index.ts.bundle?...`) 응답에 찍히는 origin 경로로 확인(`docs/troubleshooting/stray-metro-process-wrong-project.md`).
 - 새 Bash 셸엔 `JAVA_HOME`/`ANDROID_HOME`이 비어있을 수 있다 — 네이티브 리빌드 전 매번 확인.
 - 목데이터(`MOCK_CAPTURES`) 단계라 `asset_id`/`image_uri`가 항상 비어있음 — 사진첩 일괄 삭제·purge 로직은 코드는 맞아도 아직 실제 파일에는 동작하지 않는다는 걸 잊지 말 것.
+- Android `FLAG_SECURE`(넷플릭스 등 DRM) 콘텐츠는 스크린샷 자체가 OS에서 차단돼 파일이 생성되지 않는다 — 스크린샷 스캔 경로로는 절대 유입 불가. DRM 분기는 스샷이 아닌 다른 캡처 경로(v2 Share Extension/공유시트)가 붙어야 실사용 가능해지고, 지금은 로직 검증용으로만 존재(검증 시 완전 검정 이미지를 전체화면으로 띄워 찍은 스샷으로 대체 테스트).
+- 서드파티 네이티브 모듈이 AGP 버전 조건부로 Kotlin/Java JVM 타깃 설정을 건너뛰어(dead code) 릴리즈 빌드가 실패할 수 있다 — `android/build.gradle`을 직접 고쳐도 `expo prebuild`가 매번 지우므로, 고정은 반드시 config plugin(`app/plugins/withKotlinJvmTargetFix.js`)으로. `docs/troubleshooting/kotlin-jvm-target-mismatch-release-build.md` 참고.
+- 릴리즈 빌드+설치가 다 끝났는데도 `expo run:android`가 응답 없이 멈춰 있으면, 로그가 없다고 바로 "멈췄다"고 판단하지 말고 데몬 CPU 사용률·APK 산출물 타임스탬프·기기 화면 잠금 상태부터 확인할 것 — 화면이 잠겨있으면 마지막 `am start` 단계에서 그냥 대기만 하고 있는 것일 수 있다. `docs/troubleshooting/adb-install-hang-locked-device.md` 참고.
 
 코드 규칙
 
