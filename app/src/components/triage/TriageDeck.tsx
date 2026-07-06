@@ -23,6 +23,10 @@ interface TriageDeckProps {
   onPrev: () => void;
   /** lets the screen disable other controls while the rate-mode modal is open */
   onRatingActiveChange?: (active: boolean) => void;
+  /** top card only: reports pan-gesture start/end so the screen can defer a scan-result merge mid-drag */
+  onDragActiveChange?: (active: boolean) => void;
+  /** DRM cards have no image — the user types the title in directly (PROJECT.md §3.4/§5) */
+  onTitleChange?: (id: string, title: string) => void;
 }
 
 interface ExitEntry {
@@ -40,7 +44,7 @@ interface RatingState {
 }
 
 export const TriageDeck = forwardRef<TriageDeckHandle, TriageDeckProps>(function TriageDeck(
-  { queue, onCommit, onPrev, onRatingActiveChange },
+  { queue, onCommit, onPrev, onRatingActiveChange, onDragActiveChange, onTitleChange },
   ref
 ) {
   const [exiting, setExiting] = useState<ExitEntry[]>([]);
@@ -134,6 +138,8 @@ export const TriageDeck = forwardRef<TriageDeckHandle, TriageDeckProps>(function
               onResolved={handleResolved}
               onEnterRate={handleEnterRate}
               onPrev={onPrev}
+              onTitleChange={onTitleChange}
+              onDragActiveChange={depth === 0 ? onDragActiveChange : undefined}
             />
           );
         })}

@@ -9,6 +9,8 @@ export interface Capture {
   kind: CaptureKind;
   /** video watch-progress, e.g. '62%' — video kind only */
   progress?: `${number}%`;
+  /** sandbox copy path from the screenshot scan pipeline; absent for mock-seeded captures */
+  imageUri?: string;
 }
 
 /** Committed, DB-facing outcome — 'hold' isn't one: it's translated to rate@2.5 (see GestureAction). */

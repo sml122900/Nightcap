@@ -1,25 +1,36 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { tokens } from '../../constants/tokens';
 import { Capture } from '../../types/capture';
+import { CoverImage } from '../common/CoverImage';
 
 interface CardContentProps {
   item: Capture;
+  /** DRM cards have no image — the user types the title in directly (PROJECT.md §3.4/§5). */
+  onTitleChange?: (id: string, title: string) => void;
 }
 
 /** Static (non-animated) card body: thumb skeleton + meta. Shared by the live card and the exit-flight ghost. */
-export function CardContent({ item }: CardContentProps) {
+export function CardContent({ item, onTitleChange }: CardContentProps) {
   return (
     <>
       {item.kind === 'drm' ? (
         <View style={styles.drm}>
-          <Text style={styles.drmTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
+          <TextInput
+            style={styles.drmInput}
+            value={item.title}
+            onChangeText={(text) => onTitleChange?.(item.id, text)}
+            placeholder="작품 제목을 입력하세요"
+            placeholderTextColor={tokens.text3}
+            multiline
+            numberOfLines={2}
+            textAlign="center"
+          />
           <Text style={styles.drmNote}>화면 캡처 제한 콘텐츠 · 작품 정보로 저장됨</Text>
         </View>
       ) : (
         <View style={styles.thumb}>
+          {item.imageUri ? <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} /> : null}
           <View style={styles.appChip}>
             <Text style={styles.appChipText}>{item.app}</Text>
           </View>
@@ -28,7 +39,7 @@ export function CardContent({ item }: CardContentProps) {
               <Text style={styles.timeChipText}>{item.time}</Text>
             </View>
           ) : null}
-          {item.kind === 'video' ? (
+          {!item.imageUri && item.kind === 'video' ? (
             <>
               <View style={styles.avatar} />
               <View style={[styles.skLine, styles.w80]} />
@@ -37,14 +48,15 @@ export function CardContent({ item }: CardContentProps) {
                 <View style={[styles.progressFill, { width: item.progress ?? '40%' }]} />
               </View>
             </>
-          ) : (
+          ) : null}
+          {!item.imageUri && item.kind !== 'video' ? (
             <>
               <View style={[styles.skLine, styles.w80, { marginTop: 0 }]} />
               <View style={[styles.skLine, { marginTop: 8 }]} />
               <View style={[styles.skLine, styles.w60, { marginTop: 8 }]} />
               <View style={[styles.skLine, styles.w40, { marginTop: 8 }]} />
             </>
-          )}
+          ) : null}
         </View>
       )}
       <View style={styles.meta}>
@@ -79,12 +91,13 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 20,
   },
-  drmTitle: {
+  drmInput: {
+    width: '100%',
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.6,
     color: tokens.text,
-    textAlign: 'center',
+    padding: 0,
   },
   drmNote: {
     fontSize: 12,

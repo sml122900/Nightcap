@@ -40,5 +40,6 @@ export function rowToCapture(row: CaptureRow): Capture {
     src: row.channel ?? '',
     kind: row.kind,
     progress: (row.progress as Capture['progress']) ?? undefined,
+    imageUri: row.image_uri ?? undefined,
   };
 }

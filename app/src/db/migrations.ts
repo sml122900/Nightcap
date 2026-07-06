@@ -34,6 +34,20 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       CREATE INDEX idx_captures_trash ON captures(deleted_at) WHERE deleted_at IS NOT NULL;
     `,
   },
+  {
+    // Adds the screenshot-scan pipeline's storage needs: `meta` holds the scan watermark
+    // (key 'last_scan_at'), and the unique index lets scan inserts use INSERT OR IGNORE to
+    // dedupe re-scanned assets (SQLite treats NULLs as distinct, so mock/unscanned rows
+    // with asset_id NULL never collide with each other).
+    version: 2,
+    sql: `
+      CREATE TABLE meta (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX idx_captures_asset_id ON captures(asset_id) WHERE asset_id IS NOT NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {

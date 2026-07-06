@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { tokens } from '../../constants/tokens';
 import { Capture } from '../../types/capture';
+import { CoverImage } from '../common/CoverImage';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TRASH_WINDOW_MS = 7 * DAY_MS;
@@ -17,11 +18,14 @@ export function TrashTile({ item, onRestore }: TrashTileProps) {
   return (
     <View style={styles.tile}>
       <View style={styles.thumb}>
+        {item.kind !== 'drm' && item.imageUri ? (
+          <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} />
+        ) : null}
         {item.kind === 'drm' ? (
           <Text style={styles.drmLabel} numberOfLines={1}>
             {item.title.slice(0, 10)}…
           </Text>
-        ) : (
+        ) : item.imageUri ? null : (
           <>
             <View style={[styles.skLine, styles.w80]} />
             <View style={[styles.skLine, styles.w60]} />

@@ -1,0 +1,163 @@
+import { Directory, File, Paths } from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
+import { SQLiteDatabase } from 'expo-sqlite';
+import { getColors } from 'react-native-image-colors';
+import { DRM_LUMINANCE_THRESHOLD } from '../constants/drm';
+
+const CAPTURES_DIR_NAME = 'captures';
+const LAST_SCAN_KEY = 'last_scan_at';
+
+export interface MediaAccessStatus {
+  granted: boolean;
+  accessPrivileges: 'all' | 'limited' | 'none';
+}
+
+function toAccessStatus(permission: MediaLibrary.PermissionResponse): MediaAccessStatus {
+  return { granted: permission.granted, accessPrivileges: permission.accessPrivileges ?? 'none' };
+}
+
+export async function getMediaAccessStatus(): Promise<MediaAccessStatus> {
+  return toAccessStatus(await MediaLibrary.getPermissionsAsync(false, ['photo']));
+}
+
+export async function requestMediaAccess(): Promise<MediaAccessStatus> {
+  return toAccessStatus(await MediaLibrary.requestPermissionsAsync(false, ['photo']));
+}
+
+/** Android 14+/iOS: re-opens the system picker so a "limited" grant can be widened to "all". */
+export async function presentAccessPicker(): Promise<void> {
+  await MediaLibrary.presentPermissionsPicker();
+}
+
+/**
+ * Screenshots album first (works on both platforms for the common case), falling back to a
+ * filename check — `Query` can only filter by `AssetField` (creationTime/mediaType/etc), and
+ * neither that nor `MediaSubtype.SCREENSHOT` (iOS-only, not a queryable AssetField) can express
+ * "screenshot" directly, so this is the cheapest cross-platform approximation available.
+ */
+async function findScreenshotCandidates(sinceMs: number): Promise<MediaLibrary.AssetMetadata[]> {
+  const album = await MediaLibrary.Album.get('Screenshots').catch(() => null);
+  if (album) {
+    return new MediaLibrary.Query()
+      .album(album)
+      .gt(MediaLibrary.AssetField.CREATION_TIME, sinceMs)
+      .orderBy(MediaLibrary.AssetField.CREATION_TIME)
+      .exeForMetadata();
+  }
+  const images = await new MediaLibrary.Query()
+    .eq(MediaLibrary.AssetField.MEDIA_TYPE, MediaLibrary.MediaType.IMAGE)
+    .gt(MediaLibrary.AssetField.CREATION_TIME, sinceMs)
+    .orderBy(MediaLibrary.AssetField.CREATION_TIME)
+    .exeForMetadata();
+  return images.filter((meta) => meta.filename?.toLowerCase().includes('screenshot'));
+}
+
+function hexLuminance(hex: string): number {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+/** PROJECT.md §3.4: near-black average color ⇒ FLAG_SECURE black screen. See constants/drm.ts for threshold caveats. */
+async function isLikelyDrm(uri: string): Promise<boolean> {
+  try {
+    const result = await getColors(uri, {
+      fallback: '#000000',
+      pixelSpacing: 5,
+      quality: 'low',
+      cache: false,
+    });
+    const hex =
+      result.platform === 'ios' ? result.background : result.platform === 'android' ? result.average : result.dominant;
+    return hexLuminance(hex) <= DRM_LUMINANCE_THRESHOLD;
+  } catch (err) {
+    console.warn('[screenshotScan] DRM luminance check failed, defaulting to non-DRM', err);
+    return false;
+  }
+}
+
+async function getWatermark(db: SQLiteDatabase): Promise<number | null> {
+  const row = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM meta WHERE key = ?`,
+    LAST_SCAN_KEY
+  );
+  return row ? Number(row.value) : null;
+}
+
+async function setWatermark(db: SQLiteDatabase, value: number): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    LAST_SCAN_KEY,
+    String(value)
+  );
+}
+
+/**
+ * Scans for new screenshots since the last watermark, copies them into the app sandbox, and
+ * inserts a `captures` row per asset. Never throws — a bad candidate is skipped and retried
+ * next scan (see the watermark rule below); this is called from the UI thread on app foreground
+ * and must not be able to crash the triage screen (PROJECT.md W3-1 §7 verification list).
+ */
+export async function scanNewScreenshots(db: SQLiteDatabase): Promise<void> {
+  try {
+    const access = await getMediaAccessStatus();
+    if (!access.granted) return;
+
+    const lastSync = await getWatermark(db);
+    if (lastSync === null) {
+      // First run ever: start "from now" — don't flood the first triage session with the
+      // user's entire camera roll of past screenshots (PROJECT.md §2 spec).
+      await setWatermark(db, Date.now());
+      return;
+    }
+
+    const candidates = await findScreenshotCandidates(lastSync);
+    if (candidates.length === 0) return;
+
+    const dir = new Directory(Paths.document, CAPTURES_DIR_NAME);
+    if (!dir.exists) dir.create({ intermediates: true });
+
+    let firstFailureAt: number | null = null;
+    let maxSeenAt = lastSync;
+
+    for (const meta of candidates) {
+      if (meta.creationTime === null) continue;
+      try {
+        const asset = new MediaLibrary.Asset(meta.id);
+        const sourceUri = await asset.getUri();
+        const extension = meta.filename?.includes('.')
+          ? meta.filename.slice(meta.filename.lastIndexOf('.'))
+          : '.jpg';
+        const safeName = `${meta.id.replace(/[^a-zA-Z0-9]/g, '_')}${extension}`;
+        const destFile = new File(dir, safeName);
+        await new File(sourceUri).copy(destFile, { overwrite: true });
+
+        const isDrm = await isLikelyDrm(destFile.uri);
+
+        await db.runAsync(
+          `INSERT OR IGNORE INTO captures (id, created_at, asset_id, image_uri, is_drm, kind)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          meta.id,
+          meta.creationTime,
+          meta.id,
+          destFile.uri,
+          isDrm ? 1 : 0,
+          isDrm ? 'drm' : 'video'
+        );
+
+        maxSeenAt = meta.creationTime;
+      } catch (err) {
+        console.warn('[screenshotScan] failed to process candidate, will retry next scan', meta.id, err);
+        // Keep the watermark before this (and thus every later) candidate so both are
+        // reconsidered next scan — successes get skipped harmlessly via the asset_id unique index.
+        if (firstFailureAt === null) firstFailureAt = meta.creationTime;
+      }
+    }
+
+    await setWatermark(db, firstFailureAt !== null ? firstFailureAt - 1 : maxSeenAt);
+  } catch (err) {
+    console.warn('[screenshotScan] scan failed', err);
+  }
+}

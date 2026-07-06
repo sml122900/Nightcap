@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -7,10 +7,18 @@ import { tokens } from '../constants/tokens';
 import { applyVerdict, getTodayStack, undoVerdict } from '../db/queries';
 import { resetDemoData } from '../db/seed';
 import { enqueueWrite } from '../db/writeQueue';
+import {
+  getMediaAccessStatus,
+  MediaAccessStatus,
+  presentAccessPicker,
+  scanNewScreenshots,
+} from '../services/screenshotScan';
 import { syncPendingAssetDeletes } from '../services/trash';
 import { AccessibleControls } from '../components/triage/AccessibleControls';
+import { PartialAccessBanner } from '../components/triage/PartialAccessBanner';
 import { TriageDeck, TriageDeckHandle } from '../components/triage/TriageDeck';
 import { DoneScreen } from './DoneScreen';
+import { MediaAccessDeniedScreen } from './MediaAccessDeniedScreen';
 import { Capture, TriageHistoryEntry, TriageSession, Verdict } from '../types/capture';
 import { fireVerdictHaptic } from '../utils/haptics';
 
@@ -34,11 +42,17 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
   const [history, setHistory] = useState<TriageHistoryEntry[]>([]);
   const [session, setSession] = useState<TriageSession>(EMPTY_SESSION);
   const [isRating, setIsRating] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [accessStatus, setAccessStatus] = useState<MediaAccessStatus | null>(null);
+  const [scanning, setScanning] = useState(false);
   const deckRef = useRef<TriageDeckHandle>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shownDropToastRef = useRef(false);
   const syncedRef = useRef(false);
+  const isRatingRef = useRef(isRating);
+  const isDraggingRef = useRef(isDragging);
+  const pendingMergeRef = useRef<(() => void) | null>(null);
 
   const loadStack = useCallback(async () => {
     const stack = await getTodayStack(db);
@@ -49,6 +63,103 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
   useEffect(() => {
     loadStack();
   }, [loadStack]);
+
+  useEffect(() => {
+    isRatingRef.current = isRating;
+  }, [isRating]);
+
+  useEffect(() => {
+    isDraggingRef.current = isDragging;
+  }, [isDragging]);
+
+  /**
+   * Scan results are appended, not swapped in via `loadStack()` — a full replace would reset
+   * the in-progress position (`done`/current card) and could remount the top card mid-gesture.
+   * Only genuinely new rows (not already in `queue`) are appended to the tail; `total` grows by
+   * that count so the N/M counter's denominator moves but the numerator doesn't.
+   */
+  const mergeNewCaptures = useCallback(async () => {
+    const fresh = await getTodayStack(db);
+    const flush = () => {
+      setQueue((q) => {
+        if (!q) return q;
+        const existingIds = new Set(q.map((c) => c.id));
+        const newItems = fresh.filter((c) => !existingIds.has(c.id));
+        if (newItems.length === 0) return q;
+        setTotal((t) => t + newItems.length);
+        return [...q, ...newItems];
+      });
+    };
+    // Defer while the user is mid-swipe or in the rate-mode modal so the merge can't land on
+    // top of an active gesture; the flush effect below runs it once both clear.
+    if (isRatingRef.current || isDraggingRef.current) {
+      pendingMergeRef.current = flush;
+    } else {
+      flush();
+    }
+  }, [db]);
+
+  useEffect(() => {
+    if (!isRating && !isDragging && pendingMergeRef.current) {
+      const flush = pendingMergeRef.current;
+      pendingMergeRef.current = null;
+      flush();
+    }
+  }, [isRating, isDragging]);
+
+  const runScanAndMerge = useCallback(async () => {
+    setScanning(true);
+    try {
+      await scanNewScreenshots(db);
+      await mergeNewCaptures();
+    } finally {
+      setScanning(false);
+    }
+  }, [db, mergeNewCaptures]);
+
+  // Scan is intentionally not part of initDb (see db/init.ts) so it never delays first render —
+  // `loadStack` above already shows whatever's in the DB immediately; the scan's results arrive
+  // later via the append-only merge.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const access = await getMediaAccessStatus();
+      if (cancelled) return;
+      setAccessStatus(access);
+      if (access.granted) await runScanAndMerge();
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      (async () => {
+        const access = await getMediaAccessStatus();
+        setAccessStatus(access);
+        if (access.granted) await runScanAndMerge();
+      })();
+    });
+    return () => sub.remove();
+  }, [runScanAndMerge]);
+
+  const handleRequestFullAccess = async () => {
+    await presentAccessPicker();
+    const access = await getMediaAccessStatus();
+    setAccessStatus(access);
+    if (access.granted) runScanAndMerge();
+  };
+
+  /** DRM card title input (PROJECT.md §3.4/§5) — updates the live card immediately, persists async. */
+  const handleTitleChange = (id: string, title: string) => {
+    setQueue((q) => q?.map((c) => (c.id === id ? { ...c, title } : c)) ?? q);
+    enqueueWrite(id, async () => {
+      await db.runAsync('UPDATE captures SET title = ? WHERE id = ?', title, id);
+    }).catch((err) => console.warn('[triage] title update failed', err));
+  };
 
   const done = queue === null ? 0 : total - queue.length;
   const current = Math.min(done + 1, total);
@@ -123,6 +234,10 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
     return entries.sort((a, b) => b[1] - a[1])[0][0];
   }, [session.apps]);
 
+  if (accessStatus && !accessStatus.granted) {
+    return <MediaAccessDeniedScreen />;
+  }
+
   if (queue === null) {
     return <View style={styles.screen} />;
   }
@@ -142,12 +257,16 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
         <Text style={styles.count}>
           <Text style={styles.countStrong}>{current}</Text> / {total}
         </Text>
-        <View style={{ width: 34 }} />
+        {scanning ? <ActivityIndicator size="small" color={tokens.text2} /> : <View style={{ width: 34 }} />}
       </View>
 
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
       </View>
+
+      {accessStatus?.accessPrivileges === 'limited' ? (
+        <PartialAccessBanner onRequestFullAccess={handleRequestFullAccess} />
+      ) : null}
 
       <View style={styles.deckWrap}>
         <TriageDeck
@@ -156,6 +275,8 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
           onCommit={handleCommit}
           onPrev={handlePrev}
           onRatingActiveChange={setIsRating}
+          onDragActiveChange={setIsDragging}
+          onTitleChange={handleTitleChange}
         />
       </View>
 

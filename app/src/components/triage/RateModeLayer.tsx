@@ -15,6 +15,7 @@ import Animated, {
 import { tokens } from '../../constants/tokens';
 import { RATE_DEFAULT_VALUE, rateValueFromRatio } from '../../constants/swipeEngine';
 import { Capture } from '../../types/capture';
+import { CoverImage } from '../common/CoverImage';
 
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
@@ -150,6 +151,8 @@ function MiniPreview({ item }: { item: Capture }) {
       <View style={styles.miniThumb}>
         {item.kind === 'drm' ? (
           <Text style={styles.miniDrmLabel}>🔒</Text>
+        ) : item.imageUri ? (
+          <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} />
         ) : (
           <View style={styles.miniAvatar} />
         )}
@@ -214,6 +217,7 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.surface2,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   miniAvatar: {
     width: 22,

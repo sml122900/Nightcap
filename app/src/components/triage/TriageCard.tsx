@@ -36,10 +36,22 @@ interface TriageCardProps {
   onResolved: (item: Capture, action: GestureAction, dx: number, dy: number) => void;
   onEnterRate: (item: Capture, prefill: number) => void;
   onPrev: () => void;
+  onTitleChange?: (id: string, title: string) => void;
+  /** top card only: reports pan-gesture start/end so the screen can defer a scan-result merge mid-drag */
+  onDragActiveChange?: (active: boolean) => void;
 }
 
 /** The live card: at rest it sits at its stack depth; at depth 0 it's draggable (PROJECT.md §6). */
-export function TriageCard({ item, depth, ratingActive, onResolved, onEnterRate, onPrev }: TriageCardProps) {
+export function TriageCard({
+  item,
+  depth,
+  ratingActive,
+  onResolved,
+  onEnterRate,
+  onPrev,
+  onTitleChange,
+  onDragActiveChange,
+}: TriageCardProps) {
   const isTop = depth === 0;
   const dragX = useSharedValue(0);
   const dragY = useSharedValue(0);
@@ -110,6 +122,12 @@ export function TriageCard({ item, depth, ratingActive, onResolved, onEnterRate,
 
   const pan = Gesture.Pan()
     .enabled(isTop && !ratingActive)
+    .onStart(() => {
+      if (onDragActiveChange) runOnJS(onDragActiveChange)(true);
+    })
+    .onFinalize(() => {
+      if (onDragActiveChange) runOnJS(onDragActiveChange)(false);
+    })
     .onUpdate((e) => {
       dragX.value = e.translationX;
       dragY.value = e.translationY;
@@ -145,7 +163,7 @@ export function TriageCard({ item, depth, ratingActive, onResolved, onEnterRate,
 
   const card = (
     <Animated.View style={[styles.card, cardStyle]}>
-      <CardContent item={item} />
+      <CardContent item={item} onTitleChange={onTitleChange} />
       {isTop ? (
         <>
           <VerdictOverlay type="hold" style={holdStyle} />

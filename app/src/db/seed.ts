@@ -2,7 +2,14 @@ import { SQLiteDatabase } from 'expo-sqlite';
 import { MOCK_CAPTURES } from '../constants/mockCaptures';
 
 /**
- * Stand-in for the real screenshot-scan pipeline (PROJECT.md §3, not yet built).
+ * The real screenshot-scan pipeline (`services/screenshotScan.ts`) now populates the stack.
+ * This mock fallback is dev-only and off by default — flip to true locally to dogfood the
+ * swipe engine without real screenshots (PROJECT.md §6).
+ */
+export const MOCK_SEED_ENABLED = __DEV__ && false;
+
+/**
+ * Stand-in for the real screenshot-scan pipeline (PROJECT.md §3).
  * Seeds today's stack from MOCK_CAPTURES so the swipe engine has something to
  * triage. `created_at` is spread across "today" using each item's `time` label
  * so held_count/created_at ordering behaves sensibly.

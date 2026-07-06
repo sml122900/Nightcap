@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { tokens } from '../../constants/tokens';
 import { Capture } from '../../types/capture';
+import { CoverImage } from '../common/CoverImage';
 
 interface LibraryTileProps {
   item: Capture & { stars: number };
@@ -9,18 +10,20 @@ interface LibraryTileProps {
 
 /**
  * Grid tile — fixed 2-column layout, not a true Pinterest masonry (PROJECT.md §4).
- * Content is skeleton placeholders only (no real capture pipeline yet), so there's
- * no real aspect ratio to justify variable-height balancing logic.
+ * Mock-seeded content has no real image so it falls back to skeleton placeholders.
  */
 export function LibraryTile({ item }: LibraryTileProps) {
   return (
     <View style={styles.tile}>
       <View style={styles.thumb}>
+        {item.kind !== 'drm' && item.imageUri ? (
+          <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} />
+        ) : null}
         {item.kind === 'drm' ? (
           <Text style={styles.drmLabel} numberOfLines={1}>
             {item.title.slice(0, 10)}…
           </Text>
-        ) : item.kind === 'video' ? (
+        ) : item.imageUri ? null : item.kind === 'video' ? (
           <>
             <View style={styles.avatar} />
             <View style={[styles.skLine, styles.w80]} />
