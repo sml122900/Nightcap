@@ -11,6 +11,8 @@ export interface Capture {
   progress?: `${number}%`;
   /** sandbox copy path from the screenshot scan pipeline; absent for mock-seeded captures */
   imageUri?: string;
+  /** original share-sheet link, e.g. for the library detail screen's "원본 열기" — absent for pure screenshots */
+  sourceUrl?: string;
 }
 
 /** Committed, DB-facing outcome — 'hold' isn't one: it's translated to rate@2.5 (see GestureAction). */

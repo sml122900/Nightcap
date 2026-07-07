@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tokens } from '../constants/tokens';
@@ -67,33 +67,26 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
           />
         ) : (
           <View style={styles.noImage}>
+            <Text style={styles.noImageTitle} numberOfLines={4}>
+              {title || '제목 없음'}
+            </Text>
             {item.kind === 'drm' ? (
-              <>
-                <TextInput
-                  style={styles.drmInput}
-                  value={title}
-                  onChangeText={handleTitleChange}
-                  placeholder="작품 제목을 입력하세요"
-                  placeholderTextColor={tokens.text3}
-                  multiline
-                  textAlign="center"
-                />
-                <Text style={styles.drmNote}>화면 캡처 제한 콘텐츠 · 작품 정보로 저장됨</Text>
-              </>
-            ) : (
-              <Text style={styles.noImageTitle} numberOfLines={4}>
-                {title}
-              </Text>
-            )}
+              <Text style={styles.drmNote}>화면 캡처 제한 콘텐츠 · 작품 정보로 저장됨</Text>
+            ) : null}
           </View>
         )}
 
         <View style={styles.meta}>
-          <Text style={styles.title} numberOfLines={4}>
-            {title}
-          </Text>
+          <TextInput
+            style={styles.title}
+            value={title}
+            onChangeText={handleTitleChange}
+            placeholder="제목을 입력하세요"
+            placeholderTextColor={tokens.text3}
+            multiline
+          />
           <Text style={styles.src} numberOfLines={1}>
-            {item.app} · {item.src}
+            {item.src ? `${item.app} · ${item.src}` : item.app}
           </Text>
 
           <Pressable
@@ -105,6 +98,17 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
             <Text style={styles.starValue}>★ {stars.toFixed(1)}</Text>
             <Text style={styles.starEdit}>별점 수정</Text>
           </Pressable>
+
+          {item.sourceUrl ? (
+            <Pressable
+              onPress={() => Linking.openURL(item.sourceUrl!)}
+              style={styles.openOriginalBtn}
+              accessibilityRole="button"
+              accessibilityLabel="원본 열기"
+            >
+              <Text style={styles.openOriginalText}>원본 열기</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <Pressable onPress={handleDelete} style={styles.deleteBtn} accessibilityRole="button">
@@ -181,14 +185,6 @@ const styles = StyleSheet.create({
     color: tokens.text,
     textAlign: 'center',
   },
-  drmInput: {
-    width: '100%',
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: -0.6,
-    color: tokens.text,
-    padding: 0,
-  },
   drmNote: {
     fontSize: 12,
     color: tokens.text3,
@@ -202,6 +198,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     lineHeight: 26,
     color: tokens.text,
+    padding: 0,
   },
   src: {
     marginTop: 6,
@@ -230,6 +227,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: tokens.text2,
+  },
+  openOriginalBtn: {
+    marginTop: 10,
+    paddingVertical: 14,
+    borderRadius: tokens.radiusSm,
+    backgroundColor: tokens.surface,
+    borderWidth: 1,
+    borderColor: tokens.borderStrong,
+    alignItems: 'center',
+  },
+  openOriginalText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: tokens.text,
   },
   deleteBtn: {
     marginTop: 28,

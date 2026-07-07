@@ -43,7 +43,7 @@ export function LibraryTile({ item, onPress }: LibraryTileProps) {
           {item.title}
         </Text>
         <Text style={styles.app} numberOfLines={1}>
-          {item.app}
+          {item.src ? `${item.app} · ${item.src}` : item.app}
         </Text>
       </View>
     </Pressable>

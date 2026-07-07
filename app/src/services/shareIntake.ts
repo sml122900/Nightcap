@@ -2,14 +2,18 @@ import * as Crypto from 'expo-crypto';
 import { File } from 'expo-file-system';
 import { ShareIntent, ShareIntentFile } from 'expo-share-intent';
 import { SQLiteDatabase } from 'expo-sqlite';
-import { sourceAppFromUrl } from '../constants/sourceApps';
-import { copyToSandbox, isLikelyDrm } from './screenshotScan';
+import { enqueueWrite } from '../db/writeQueue';
+import { fallbackLabelFromUrl, sourceAppFromUrl, xAuthorFromUrl } from '../constants/sourceApps';
+import { copyToSandbox, downloadToSandbox, isLikelyDrm } from './screenshotScan';
+import { fetchUrlMetadata } from './urlMetadata';
 
 const TITLE_MAX_LEN = 120;
 
 async function hashFile(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
-  const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, buffer);
+  // Crypto.digest expects a TypedArray view, not a raw ArrayBuffer — passing the ArrayBuffer
+  // straight through fails on Android with "no ArrayBuffer attached" (expo-crypto SDK57).
+  const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, new Uint8Array(buffer));
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
@@ -41,6 +45,43 @@ function titleFromText(text: string | null | undefined, url: string | null): str
   return trimmed.length > TITLE_MAX_LEN ? `${trimmed.slice(0, TITLE_MAX_LEN)}…` : trimmed;
 }
 
+/**
+ * Runs after the row is already inserted and visible — never awaited by the caller, so a slow
+ * or offline network can't delay the card showing up (docs/decisions/url-metadata-fetch.md).
+ * `hadTextTitle` gates the instagram/X path-pattern fallback: it should only kick in when we had
+ * nothing better (no sender-provided title, no usable shared text) to begin with.
+ */
+async function enrichLinkCapture(db: SQLiteDatabase, id: string, url: string, hadTextTitle: boolean): Promise<void> {
+  try {
+    const metadata = await fetchUrlMetadata(url);
+    // X's public metadata endpoints are essentially always blocked, so the URL-parsed @handle
+    // is used unconditionally rather than only as a last-resort fallback (docs/decisions/url-metadata-fetch.md).
+    const author = xAuthorFromUrl(url) ?? metadata?.author ?? null;
+    const title = metadata?.title ?? (hadTextTitle ? null : fallbackLabelFromUrl(url));
+
+    if (title || author) {
+      const sets = [title ? 'title = ?' : null, author ? 'source_author = ?' : null].filter(Boolean);
+      const values = [title, author].filter((v): v is string => v !== null);
+      await enqueueWrite(id, async () => {
+        await db.runAsync(`UPDATE captures SET ${sets.join(', ')} WHERE id = ?`, ...values, id);
+      });
+    }
+
+    if (metadata?.thumbnailUrl) {
+      try {
+        const destFile = await downloadToSandbox(metadata.thumbnailUrl, `${id}_thumb.jpg`);
+        await enqueueWrite(id, async () => {
+          await db.runAsync(`UPDATE captures SET image_uri = ? WHERE id = ?`, destFile.uri, id);
+        });
+      } catch (err) {
+        console.warn('[shareIntake] thumbnail download failed', err);
+      }
+    }
+  } catch (err) {
+    console.warn('[shareIntake] link metadata enrich failed', err);
+  }
+}
+
 async function ingestUrlOrText(
   db: SQLiteDatabase,
   params: { url: string | null; text: string | null; metaTitle: string | null }
@@ -48,7 +89,8 @@ async function ingestUrlOrText(
   const { url, text, metaTitle } = params;
   const id = Crypto.randomUUID();
   const sourceApp = url ? sourceAppFromUrl(url) : null;
-  const title = metaTitle ?? titleFromText(text, url) ?? url ?? text ?? '';
+  const textCandidate = titleFromText(text, url);
+  const title = metaTitle ?? textCandidate ?? url ?? text ?? '';
 
   await db.runAsync(
     `INSERT INTO captures (id, created_at, source_app, source_url, title, kind)
@@ -59,6 +101,10 @@ async function ingestUrlOrText(
     url,
     title
   );
+
+  if (url) {
+    void enrichLinkCapture(db, id, url, !!(metaTitle ?? textCandidate));
+  }
 }
 
 /**

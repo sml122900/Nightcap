@@ -11,6 +11,7 @@ export interface CaptureRow {
   content_hash: string | null;
   source_app: string | null;
   source_url: string | null;
+  source_author: string | null;
   title: string | null;
   stars: number | null;
   verdict: 'rated' | 'hold' | 'drop' | null;
@@ -38,9 +39,10 @@ export function rowToCapture(row: CaptureRow): Capture {
     app: row.source_app ?? '',
     time: timeLabelFrom(row.created_at),
     title: row.title ?? '',
-    src: row.channel ?? '',
+    src: row.source_author ?? row.channel ?? '',
     kind: row.kind,
     progress: (row.progress as Capture['progress']) ?? undefined,
     imageUri: row.image_uri ?? undefined,
+    sourceUrl: row.source_url ?? undefined,
   };
 }

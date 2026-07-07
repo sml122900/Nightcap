@@ -73,6 +73,18 @@ export async function copyToSandbox(sourceUri: string, filename: string): Promis
   return destFile;
 }
 
+/**
+ * Downloads a remote URL (link-share og:image/oEmbed thumbnail, services/urlMetadata.ts) straight
+ * into the app sandbox's `captures` dir — same destination/rationale as copyToSandbox, but for a
+ * network source instead of a local one.
+ */
+export async function downloadToSandbox(url: string, filename: string): Promise<File> {
+  const dir = new Directory(Paths.document, CAPTURES_DIR_NAME);
+  if (!dir.exists) dir.create({ intermediates: true });
+  const destFile = new File(dir, filename);
+  return File.downloadFileAsync(url, destFile, { idempotent: true });
+}
+
 /** PROJECT.md §3.4: near-black average color ⇒ FLAG_SECURE black screen. See constants/drm.ts for threshold caveats. */
 export async function isLikelyDrm(uri: string): Promise<boolean> {
   try {
