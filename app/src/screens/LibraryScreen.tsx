@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tokens } from '../constants/tokens';
 import { getLibrary, getTrashCount } from '../db/queries';
 import { LibraryTile } from '../components/library/LibraryTile';
 import { Capture } from '../types/capture';
 
 type FilterKey = 'all' | '4.5' | '4' | '3';
+
+const TRASH_ENTRY_BOTTOM_GAP = 20;
+const TRASH_ENTRY_HEIGHT = 48;
 
 const FILTERS: { key: FilterKey; label: string; minStars?: number }[] = [
   { key: 'all', label: '전체' },
@@ -23,6 +26,7 @@ interface LibraryScreenProps {
 
 export function LibraryScreen({ onBack, onOpenTrash }: LibraryScreenProps) {
   const db = useSQLiteContext();
+  const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [items, setItems] = useState<(Capture & { stars: number })[]>([]);
   const [trashCount, setTrashCount] = useState(0);
@@ -39,7 +43,7 @@ export function LibraryScreen({ onBack, onOpenTrash }: LibraryScreenProps) {
   }, [reload]);
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.top}>
         <Pressable onPress={onBack} hitSlop={8}>
           <Text style={styles.ghostBtn}>닫기</Text>
@@ -72,14 +76,17 @@ export function LibraryScreen({ onBack, onOpenTrash }: LibraryScreenProps) {
           keyExtractor={(item) => item.id}
           numColumns={2}
           columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={[
+            styles.grid,
+            { paddingBottom: insets.bottom + TRASH_ENTRY_BOTTOM_GAP + TRASH_ENTRY_HEIGHT + 16 },
+          ]}
           renderItem={({ item }) => <LibraryTile item={item} />}
         />
       )}
 
       <Pressable
         onPress={onOpenTrash}
-        style={styles.trashEntry}
+        style={[styles.trashEntry, { bottom: insets.bottom + TRASH_ENTRY_BOTTOM_GAP }]}
         accessibilityRole="button"
         accessibilityLabel={`휴지통 ${trashCount}개`}
       >
@@ -142,7 +149,6 @@ const styles = StyleSheet.create({
   },
   grid: {
     paddingHorizontal: 24,
-    paddingBottom: 90,
     gap: 12,
   },
   row: {
@@ -164,7 +170,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 24,
     right: 24,
-    bottom: 20,
     paddingVertical: 14,
     borderRadius: 16,
     backgroundColor: tokens.surface2,

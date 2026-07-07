@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tokens } from '../constants/tokens';
 import { TriageSession } from '../types/capture';
 
@@ -14,9 +14,10 @@ interface DoneScreenProps {
 /** Wrapped-style takeover (PROJECT.md §4) — replaces the whole triage screen body when the stack empties. */
 export function DoneScreen({ session, topApp, onOpenLibrary, onRestart }: DoneScreenProps) {
   const avg = session.rated ? session.sum / session.rated : 0;
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.body}>
         <Text style={styles.eyebrow}>오늘의 정리</Text>
 
@@ -34,7 +35,7 @@ export function DoneScreen({ session, topApp, onOpenLibrary, onRestart }: DoneSc
         <Text style={styles.note}>삭제한 {session.drop}장은 휴지통에 7일 보관 후 완전히 지워져요.</Text>
       </View>
 
-      <View style={styles.actions}>
+      <View style={[styles.actions, { paddingBottom: insets.bottom + 20 }]}>
         <Pressable onPress={onOpenLibrary} style={styles.primaryBtn} accessibilityRole="button">
           <Text style={styles.primaryText}>보관함 보기</Text>
         </Pressable>
@@ -131,7 +132,6 @@ const styles = StyleSheet.create({
   },
   actions: {
     paddingHorizontal: 24,
-    paddingBottom: 20,
     gap: 10,
   },
   primaryBtn: {

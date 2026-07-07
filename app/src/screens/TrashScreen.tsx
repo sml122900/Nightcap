@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tokens } from '../constants/tokens';
 import { getTrash, restoreFromTrash } from '../db/queries';
 import { TrashTile } from '../components/trash/TrashTile';
@@ -13,6 +13,7 @@ interface TrashScreenProps {
 
 export function TrashScreen({ onBack }: TrashScreenProps) {
   const db = useSQLiteContext();
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<(Capture & { deletedAt: number })[]>([]);
 
   const reload = useCallback(async () => {
@@ -29,7 +30,7 @@ export function TrashScreen({ onBack }: TrashScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.top}>
         <Pressable onPress={onBack} hitSlop={8}>
           <Text style={styles.ghostBtn}>닫기</Text>
@@ -48,7 +49,7 @@ export function TrashScreen({ onBack }: TrashScreenProps) {
           keyExtractor={(item) => item.id}
           numColumns={2}
           columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + 24 }]}
           renderItem={({ item }) => <TrashTile item={item} onRestore={handleRestore} />}
         />
       )}
@@ -82,7 +83,6 @@ const styles = StyleSheet.create({
   },
   grid: {
     paddingHorizontal: 24,
-    paddingBottom: 24,
     gap: 12,
   },
   row: {

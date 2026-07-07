@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { tokens } from '../constants/tokens';
 import { applyVerdict, getTodayStack, undoVerdict } from '../db/queries';
@@ -37,6 +37,7 @@ interface TriageScreenProps {
 
 export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
   const db = useSQLiteContext();
+  const insets = useSafeAreaInsets();
   const [queue, setQueue] = useState<Capture[] | null>(null);
   const [total, setTotal] = useState(0);
   const [history, setHistory] = useState<TriageHistoryEntry[]>([]);
@@ -249,7 +250,7 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.top}>
         <Pressable onPress={handleRestart} hitSlop={8}>
           <Text style={styles.ghostBtn}>닫기</Text>
@@ -280,7 +281,7 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
         />
       </View>
 
-      <View style={styles.foot}>
+      <View style={[styles.foot, { paddingBottom: insets.bottom + 24 }]}>
         <AccessibleControls
           disabled={isRating}
           onHold={() => deckRef.current?.resolveTop('hold')}
@@ -291,7 +292,7 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
       </View>
 
       {toastMsg ? (
-        <View style={styles.toastWrap} pointerEvents="none">
+        <View style={[styles.toastWrap, { bottom: insets.bottom + 110 }]} pointerEvents="none">
           <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(200)} style={styles.toast}>
             <Text style={styles.toastText}>{toastMsg}</Text>
           </Animated.View>
@@ -348,7 +349,6 @@ const styles = StyleSheet.create({
   foot: {
     paddingHorizontal: 24,
     paddingTop: 6,
-    paddingBottom: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -357,7 +357,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 110,
     alignItems: 'center',
   },
   toast: {
