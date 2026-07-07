@@ -26,6 +26,13 @@ interface RateModeLayerProps {
   onCommit: (value: number) => void;
   /** Android back button / dismiss without a verdict — the card stack is untouched */
   onCancel: () => void;
+  /**
+   * Overrides the outside-tap "skip to default 2.5" behavior. Triage wants a stray tap to
+   * commit RATE_DEFAULT_VALUE (skip-rating shortcut); editing an existing rating from the
+   * library detail screen doesn't — a stray tap there should just close without overwriting
+   * the current value. Omit to keep the triage default.
+   */
+  onBackgroundTap?: () => void;
 }
 
 /**
@@ -35,7 +42,7 @@ interface RateModeLayerProps {
  * z-order, so the card buried the star bar (docs/decisions/rate-mode-modal-not-docking.md).
  * A Modal renders in its own native window, so it's guaranteed to sit above the deck.
  */
-export function RateModeLayer({ item, prefill, onCommit, onCancel }: RateModeLayerProps) {
+export function RateModeLayer({ item, prefill, onCommit, onCancel, onBackgroundTap }: RateModeLayerProps) {
   const value = useSharedValue(prefill);
   const starsRef = useAnimatedRef<Animated.View>();
   const [accessibleValue, setAccessibleValue] = useState(prefill);
@@ -78,7 +85,8 @@ export function RateModeLayer({ item, prefill, onCommit, onCancel }: RateModeLay
     });
 
   const backgroundTap = Gesture.Tap().onEnd(() => {
-    runOnJS(commit)(RATE_DEFAULT_VALUE);
+    if (onBackgroundTap) runOnJS(onBackgroundTap)();
+    else runOnJS(commit)(RATE_DEFAULT_VALUE);
   });
 
   const valueProps = useAnimatedProps(() => ({

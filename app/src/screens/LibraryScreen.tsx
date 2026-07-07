@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tokens } from '../constants/tokens';
 import { getLibrary, getTrashCount } from '../db/queries';
 import { LibraryTile } from '../components/library/LibraryTile';
+import { LibraryDetailScreen } from './LibraryDetailScreen';
 import { Capture } from '../types/capture';
 
 type FilterKey = 'all' | '4.5' | '4' | '3';
@@ -30,6 +31,7 @@ export function LibraryScreen({ onBack, onOpenTrash }: LibraryScreenProps) {
   const [filter, setFilter] = useState<FilterKey>('all');
   const [items, setItems] = useState<(Capture & { stars: number })[]>([]);
   const [trashCount, setTrashCount] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     const minStars = FILTERS.find((f) => f.key === filter)?.minStars;
@@ -41,6 +43,28 @@ export function LibraryScreen({ onBack, onOpenTrash }: LibraryScreenProps) {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // Own back-button handling for the detail sub-state so hardware back closes just the detail
+  // view first — App.tsx's handler only knows about the top-level screen switch, not this.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (selectedId === null) return false;
+      setSelectedId(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [selectedId]);
+
+  const selectedItem = items.find((item) => item.id === selectedId) ?? null;
+
+  const handleCloseDetail = () => {
+    setSelectedId(null);
+    reload();
+  };
+
+  if (selectedItem) {
+    return <LibraryDetailScreen item={selectedItem} onBack={handleCloseDetail} />;
+  }
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -80,7 +104,7 @@ export function LibraryScreen({ onBack, onOpenTrash }: LibraryScreenProps) {
             styles.grid,
             { paddingBottom: insets.bottom + TRASH_ENTRY_BOTTOM_GAP + TRASH_ENTRY_HEIGHT + 16 },
           ]}
-          renderItem={({ item }) => <LibraryTile item={item} />}
+          renderItem={({ item }) => <LibraryTile item={item} onPress={() => setSelectedId(item.id)} />}
         />
       )}
 
