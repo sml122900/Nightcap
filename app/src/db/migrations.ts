@@ -48,6 +48,16 @@ const MIGRATIONS: { version: number; sql: string }[] = [
       CREATE UNIQUE INDEX idx_captures_asset_id ON captures(asset_id) WHERE asset_id IS NOT NULL;
     `,
   },
+  {
+    // Share-sheet image ingestion (services/shareIntake.ts) has no MediaLibrary asset_id to dedupe
+    // on, so it hashes the copied file's bytes instead — same partial-unique-index pattern as
+    // asset_id above.
+    version: 3,
+    sql: `
+      ALTER TABLE captures ADD COLUMN content_hash TEXT;
+      CREATE UNIQUE INDEX idx_captures_content_hash ON captures(content_hash) WHERE content_hash IS NOT NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {

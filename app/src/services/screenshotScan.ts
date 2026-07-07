@@ -60,8 +60,21 @@ function hexLuminance(hex: string): number {
   return 0.299 * r + 0.587 * g + 0.114 * b;
 }
 
+/**
+ * Copies a source file (MediaLibrary asset uri or a share-intent temp file uri) into the app
+ * sandbox's `captures` dir, so the row survives even if the original is later removed. Shared
+ * by the scan pipeline and the share-intent ingestion path (services/shareIntake.ts).
+ */
+export async function copyToSandbox(sourceUri: string, filename: string): Promise<File> {
+  const dir = new Directory(Paths.document, CAPTURES_DIR_NAME);
+  if (!dir.exists) dir.create({ intermediates: true });
+  const destFile = new File(dir, filename);
+  await new File(sourceUri).copy(destFile, { overwrite: true });
+  return destFile;
+}
+
 /** PROJECT.md §3.4: near-black average color ⇒ FLAG_SECURE black screen. See constants/drm.ts for threshold caveats. */
-async function isLikelyDrm(uri: string): Promise<boolean> {
+export async function isLikelyDrm(uri: string): Promise<boolean> {
   try {
     const result = await getColors(uri, {
       fallback: '#000000',
@@ -116,9 +129,6 @@ export async function scanNewScreenshots(db: SQLiteDatabase): Promise<void> {
     const candidates = await findScreenshotCandidates(lastSync);
     if (candidates.length === 0) return;
 
-    const dir = new Directory(Paths.document, CAPTURES_DIR_NAME);
-    if (!dir.exists) dir.create({ intermediates: true });
-
     let firstFailureAt: number | null = null;
     let maxSeenAt = lastSync;
 
@@ -131,8 +141,7 @@ export async function scanNewScreenshots(db: SQLiteDatabase): Promise<void> {
           ? meta.filename.slice(meta.filename.lastIndexOf('.'))
           : '.jpg';
         const safeName = `${meta.id.replace(/[^a-zA-Z0-9]/g, '_')}${extension}`;
-        const destFile = new File(dir, safeName);
-        await new File(sourceUri).copy(destFile, { overwrite: true });
+        const destFile = await copyToSandbox(sourceUri, safeName);
 
         const isDrm = await isLikelyDrm(destFile.uri);
 

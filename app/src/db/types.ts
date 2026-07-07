@@ -8,6 +8,7 @@ export interface CaptureRow {
   deleted_at: number | null;
   image_uri: string | null;
   asset_id: string | null;
+  content_hash: string | null;
   source_app: string | null;
   source_url: string | null;
   title: string | null;

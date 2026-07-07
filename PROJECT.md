@@ -30,27 +30,27 @@ npx expo install react-native-gesture-handler react-native-reanimated expo-hapti
 npx expo prebuild
 ```
 
-## 3. 캡처 파이프라인 (플랫폼별)
+## 3. 캡처 파이프라인
+
+**W3-1 도그푸딩 이후 변경**: 최초엔 스크린샷 자동 스캔이 유일한 유입 경로였으나(§3.5 참고), 도그푸딩 결과 전 스샷 자동 유입이 업무/일회성 캡처까지 스택에 밀어넣어 "정리가 숙제가 되는" 문제가 확인됨. → **공유시트("공유하기" → Nightcap) 수신을 주 경로로 전환, 자동 스캔은 설정에서 켜는 옵션(기본 OFF)으로 강등**. "의도적으로 보낸 것만 담는다"는 원칙이 우선.
 
 ### 3.1 공통 원칙
-- MVP의 캡처 트리거는 **"유저가 직접 찍은 스크린샷"**. 앱은 스크린샷을 감지/수집만 한다. 다른 앱 화면을 직접 캡처하려 하지 말 것 (OS 불가/심사 리젝 사유).
-- 메타데이터(출처 앱, 링크)는 MVP에서 **best-effort**: 클립보드에 URL이 있으면 파싱해 붙이고, 없으면 비워둔다. OCR/AI 태깅은 v2.
+- 유입 경로는 두 가지: **공유시트(주 경로)** / **스크린샷 자동 스캔(옵션, 기본 OFF)**. 둘 다 최종적으로 `captures` 테이블에 같은 스키마로 적재되며, 이후 파이프라인(휴지통/보관함/정리 세션)은 유입 경로를 구분하지 않는다.
+- 공유 수신 시 앱이 열리면 토스트("스택에 담았어요")만 띄우고 **정리 모드(스와이프 UI)로 바로 진입하지 않는다** — 낮의 흐름을 끊지 않는 원칙. 그래서 정리 모드(`TriageScreen`)와 분리된 홈 화면(`HomeScreen`, 오늘 담은 개수 + "정리 시작" 버튼)이 있다.
 
-### 3.2 iOS
-- **온보딩에서 안내하는 트리거 2종** (앱이 만드는 게 아니라 유저가 설정):
-  - 백탭: 설정 → 손쉬운 사용 → 터치 → 뒷면 탭 2번 → "스크린샷". GIF 온보딩 필수.
-  - 단축어 자동화: "스크린샷이 찍히면" → 우리 앱 URL scheme 호출(선택). MVP에선 생략 가능.
-- **Share Extension** (권장, native target 추가): 유튜브/릴스 공유 시트 → "별점 매기기". 링크+출처 앱을 정확히 확보하는 유일한 경로. `expo-share-extension` 또는 config plugin으로.
-- 앱 포그라운드 진입 시 `MediaLibrary`에서 `mediaSubtypes: screenshot` + 마지막 동기화 이후 생성분을 스캔해 스택에 적재.
+### 3.2 공유시트 (주 경로) — `expo-share-intent`
+- 이미지 공유: 기존 스크린샷 스캔 파이프라인의 사본복사(`services/screenshotScan.ts`의 `copyToSandbox`)와 DRM 판별(`isLikelyDrm`)을 그대로 재사용(`services/shareIntake.ts`). `asset_id`가 없으므로 파일 SHA-256 해시(`content_hash` 컬럼, 부분 유니크 인덱스)로 재공유 dedup.
+- 텍스트/URL 공유: `source_url` 저장, URL 호스트에서 출처 앱 추론(`constants/sourceApps.ts`의 매핑 상수로 격리 — youtube.com/youtu.be→유튜브, instagram.com→인스타, netflix.com→넷플릭스 등). 공유 텍스트/웹페이지 메타에서 제목 후보 추출해 `title`에, 없으면 URL 자체로 폴백. `kind='text'`, 이미지 없음.
+- Android는 `androidIntentFilters: ["text/*", "image/*"]`, iOS는 `iosActivationRules`(WebURL/WebPage/Image)로 app.json 플러그인 설정. 네이티브 모듈이라 `expo prebuild` + dev-client 리빌드 필요(Expo Go 불가).
 
-### 3.3 Android
-- **플로팅 버블**: `SYSTEM_ALERT_WINDOW`(다른 앱 위에 표시) 권한 + Foreground Service. 탭 1회 = 최신 스크린샷 마킹 or 스크린샷 촬영 인텐트. 네이티브 모듈 필요 → config plugin 작성.
-- **스크린샷 감지**: Android 14+는 공식 Screenshot Detection API(포그라운드 한정), 그 이하는 MediaStore ContentObserver. 감지 시 조용한 알림 "방금 캡처, 스택에 추가됨".
-- 접근성 서비스는 쓰지 않는다 (플레이스토어 심사 리스크).
+### 3.3 스크린샷 자동 스캔 (옵션, 기본 OFF)
+- 설정 화면(`SettingsScreen`) 토글 1개, `meta` 테이블에 저장(`services/settings.ts`). OFF 상태에선 사진 라이브러리 권한 요청 자체를 하지 않음 — 온보딩 마찰 감소.
+- ON일 때 로직은 기존과 동일: 앱 포그라운드 진입 시 `MediaLibrary` `Screenshots` 앨범(+파일명 폴백)을 마지막 동기화 이후로 스캔, 사본복사 → DRM 판별 → INSERT.
+- Android 플로팅 버블/iOS 백탭 온보딩 등 "자동 감지" 강화는 이 옵션 경로에 한해 v2 이후 고려(현재는 포그라운드 스캔만).
 
 ### 3.4 DRM 분기 (필수)
-- 넷플릭스/티빙/디즈니+ 등 `FLAG_SECURE` 콘텐츠는 스크린샷이 검은 화면. 
-- 처리: 캡처 이미지가 거의 전부 검정(휘도 임계값)이면 **DRM 카드**로 전환 → 이미지 대신 제목 입력/검색(작품 정보)으로 저장. 프로토타입의 `.drm` 카드가 이 상태의 UI.
+- 넷플릭스/티빙/디즈니+ 등 `FLAG_SECURE` 콘텐츠는 스크린샷이 검은 화면.
+- 처리: 캡처 이미지가 거의 전부 검정(휘도 임계값)이면 **DRM 카드**로 전환 → 이미지 대신 제목 입력/검색(작품 정보)으로 저장. 공유시트 이미지 경로와 자동 스캔 경로 모두 동일한 `isLikelyDrm` 판별을 거친다.
 
 ## 4. 화면 명세 × 디자인 시스템 매핑
 

@@ -4,23 +4,30 @@
 
 ## 진행상황
 
-**완료 (W1, W2, W3-1)**
+**완료 (W1, W2, W3-1, W3-2)**
 - 정리 모드 스와이프 엔진: 4방향 제스처(보류/이전/삭제/별점모드) + 별점 모드(도킹+드래그+접근성) — `app/src/components/triage/`, `app/src/constants/swipeEngine.ts`
-- SQLite 영속화 + 마이그레이션 — `app/src/db/`
+- SQLite 영속화 + 마이그레이션(v3까지: captures/meta/content_hash) — `app/src/db/`
 - 휴지통(소프트 삭제 7일 + 세션종료 일괄 삭제 + 강제종료 재시도) — `app/src/services/trash.ts`
 - 완료 요약 / 보관함 / 휴지통 화면 — `app/src/screens/`
-- **스크린샷 스캔 파이프라인** — `app/src/services/screenshotScan.ts`: 권한 요청(`photo` 세분화 권한, `accessPrivileges` 부분접근 판별) → `Screenshots` 앨범(+파일명 폴백) 스캔 → 앱 샌드박스 사본 복사 → DRM 휘도 판별(`react-native-image-colors`, 임계값은 `app/src/constants/drm.ts`) → `captures` INSERT. `initDb`가 아닌 `TriageScreen` 마운트/AppState 포그라운드 시점에 비동기 실행(첫 렌더 안 막음), 결과는 기존 스택에 append-only 병합(진행 중 카드/제스처 안 건드림). 권한 거부 화면(`MediaAccessDeniedScreen`)·부분허용 배너(`PartialAccessBanner`) 포함
+- 스크린샷 스캔 파이프라인 — `app/src/services/screenshotScan.ts`: 권한 요청(`photo` 세분화 권한, `accessPrivileges` 부분접근 판별) → `Screenshots` 앨범(+파일명 폴백) 스캔 → 앱 샌드박스 사본 복사(`copyToSandbox`, export돼 공유시트 경로와 공유) → DRM 휘도 판별(`isLikelyDrm`, `react-native-image-colors`, 임계값은 `app/src/constants/drm.ts`) → `captures` INSERT. **W3-2부터 기본 OFF** — 설정 화면 토글로만 켜짐(`app/src/services/settings.ts`, `meta` 테이블).
 - 카드/보관함/휴지통/별점모드 실이미지 렌더(`CoverImage` top-crop 컴포넌트), DRM 카드 제목 직접입력(TextInput)
+- **홈/정리 화면 분리 + 유입 경로를 공유시트로 전환(W3-2)** — 배경/근거는 `docs/decisions/share-intent-primary-ingestion.md`.
+  - `app/src/screens/HomeScreen.tsx` 신설: 앱 기본 화면, 오늘 담은 캡처 개수 + "정리 시작" 버튼. `TriageScreen`(스와이프 UI)은 이제 명시적으로 진입/종료(`onExit`)하는 별도 화면.
+  - `expo-share-intent`(v8, native module) 도입 — `App.tsx`의 `RootNavigator`에서 `useShareIntent()`로 항상 수신 → `app/src/services/shareIntake.ts`의 `ingestShareIntent`가 이미지(사본복사+DRM판별 재사용, `content_hash` SHA-256 dedup)/URL·텍스트(`source_url`+`sourceAppFromUrl`로 출처 추론, `app/src/constants/sourceApps.ts`) 분기 INSERT → 홈으로 이동 + 토스트("스택에 담았어요"), 정리 모드로 안 끌고 감.
+  - 보관함 상세 화면(`app/src/screens/LibraryDetailScreen.tsx`) 신설: 원본 이미지 전체보기, 별점 수정(별점 모드 `RateModeLayer` 재사용 + `onBackgroundTap` 옵션 prop으로 실수 덮어쓰기 방지), DRM 제목 수정, 삭제. `LibraryScreen`이 자체 `selectedId`/`BackHandler`로 서브화면 관리(`App.tsx` 미변경).
+  - Android edge-to-edge 하단 잘림 수정: 전 화면 `SafeAreaView edges={['top']}` + `useSafeAreaInsets().bottom`을 스크롤/하단 고정 요소에 명시적으로 더하는 방식으로 통일.
+  - 설정 화면(`app/src/screens/SettingsScreen.tsx`) 신설: 스크린샷 자동 수집 토글 1개(기본 OFF).
 
-**진행 중 아님 / 다음 단계 (W3 나머지 ~ W4)**
+**진행 중 아님 / 다음 단계 (W4~)**
 - 공유 카드 화면(Letterboxd 스타일)
-- 백탭/버블 온보딩(GIF), Android 플로팅 버블 네이티브 모듈
+- iOS 백탭 온보딩(GIF) — 공유시트가 주 경로가 된 이후 우선순위 낮아짐
 - 보관함 진짜 메이슨리(현재는 고정 2열 그리드로 단순화됨)
 - `DRM_LUMINANCE_THRESHOLD` 실기기 튜닝(다크모드 오탐 체크 포함, 아직 미검증)
+- iOS 공유시트(Share Extension) 실기기 검증 — macOS/Xcode 환경이 없어 이번 라운드는 Android(`expo run:android`)만 실기기 확인, iOS는 `expo prebuild`까지만(네이티브 프로젝트 생성 확인) 하고 실행은 못 함
 
 **알려진 제약**
 - 별점 모드 손맛/접근성은 실기기 육안·TalkBack 확인이 아직 필요
-- 릴리즈 빌드는 실기기(Galaxy S24+)에 설치까지 확인됨(2026-07-07). 다만 이건 컴파일+설치 성공일 뿐, 스캔/DRM/휴지통 등 실제 기능 동작은 PROJECT.md W3-1 §7 체크리스트로 아직 수동 검증 전
+- 릴리즈 빌드는 실기기(Galaxy S24+)에 설치까지 확인됨. 다만 스캔/DRM/휴지통 등 실제 기능 동작은 PROJECT.md 체크리스트로 수동 검증 필요 — 공유시트 유입 경로(이미지/URL 공유)는 이번 라운드에 dev-client 빌드 후 실기기로 검증 예정(사용자 확인 필요, PROJECT.md §7 체크리스트)
 - Android `FLAG_SECURE`(넷플릭스 등) 콘텐츠는 스크린샷 자체가 차단돼 스캔 경로로 DRM 카드가 실제로 만들어지는 일은 없음(지뢰 목록 참고) — 검증은 검정 이미지 스샷으로 대체
 
 ---

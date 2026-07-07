@@ -14,6 +14,7 @@ import {
   scanNewScreenshots,
 } from '../services/screenshotScan';
 import { syncPendingAssetDeletes } from '../services/trash';
+import { getAutoScanEnabled } from '../services/settings';
 import { AccessibleControls } from '../components/triage/AccessibleControls';
 import { PartialAccessBanner } from '../components/triage/PartialAccessBanner';
 import { TriageDeck, TriageDeckHandle } from '../components/triage/TriageDeck';
@@ -33,9 +34,11 @@ function bumpApps(apps: Record<string, number>, app: string, delta: number) {
 
 interface TriageScreenProps {
   onOpenLibrary: () => void;
+  /** top-bar "닫기" — exits back to the home screen; untriaged rows stay in the stack for next time */
+  onExit: () => void;
 }
 
-export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
+export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [queue, setQueue] = useState<Capture[] | null>(null);
@@ -124,6 +127,8 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const enabled = await getAutoScanEnabled(db);
+      if (cancelled || !enabled) return;
       const access = await getMediaAccessStatus();
       if (cancelled) return;
       setAccessStatus(access);
@@ -139,13 +144,15 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active') return;
       (async () => {
+        const enabled = await getAutoScanEnabled(db);
+        if (!enabled) return;
         const access = await getMediaAccessStatus();
         setAccessStatus(access);
         if (access.granted) await runScanAndMerge();
       })();
     });
     return () => sub.remove();
-  }, [runScanAndMerge]);
+  }, [runScanAndMerge, db]);
 
   const handleRequestFullAccess = async () => {
     await presentAccessPicker();
@@ -252,7 +259,7 @@ export function TriageScreen({ onOpenLibrary }: TriageScreenProps) {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.top}>
-        <Pressable onPress={handleRestart} hitSlop={8}>
+        <Pressable onPress={onExit} hitSlop={8}>
           <Text style={styles.ghostBtn}>닫기</Text>
         </Pressable>
         <Text style={styles.count}>

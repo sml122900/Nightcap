@@ -50,12 +50,9 @@ export function CardContent({ item, onTitleChange }: CardContentProps) {
             </>
           ) : null}
           {!item.imageUri && item.kind !== 'video' ? (
-            <>
-              <View style={[styles.skLine, styles.w80, { marginTop: 0 }]} />
-              <View style={[styles.skLine, { marginTop: 8 }]} />
-              <View style={[styles.skLine, styles.w60, { marginTop: 8 }]} />
-              <View style={[styles.skLine, styles.w40, { marginTop: 8 }]} />
-            </>
+            <Text style={styles.textKindTitle} numberOfLines={4}>
+              {item.title}
+            </Text>
           ) : null}
         </View>
       )}
@@ -147,8 +144,15 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.surface3,
   },
   w80: { width: '80%' },
-  w60: { width: '60%' },
   w40: { width: '40%' },
+  textKindTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    lineHeight: 26,
+    color: tokens.text,
+    textAlign: 'center',
+  },
   progressBar: {
     position: 'absolute',
     left: 0,

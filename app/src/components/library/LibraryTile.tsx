@@ -30,11 +30,9 @@ export function LibraryTile({ item, onPress }: LibraryTileProps) {
             <View style={[styles.skLine, styles.w80]} />
           </>
         ) : (
-          <>
-            <View style={[styles.skLine, styles.w80]} />
-            <View style={styles.skLine} />
-            <View style={[styles.skLine, styles.w60]} />
-          </>
+          <Text style={styles.textKindTitle} numberOfLines={3}>
+            {item.title}
+          </Text>
         )}
         <View style={styles.starBadge}>
           <Text style={styles.starBadgeText}>★{item.stars.toFixed(1)}</Text>
@@ -88,7 +86,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   w80: { width: '80%', marginTop: 0 },
-  w60: { width: '60%' },
+  textKindTitle: {
+    margin: 'auto',
+    fontSize: 13,
+    fontWeight: '800',
+    color: tokens.text,
+    textAlign: 'center',
+  },
   starBadge: {
     position: 'absolute',
     top: 8,

@@ -3,6 +3,7 @@
     "name": "nightcap",
     "slug": "nightcap",
     "version": "1.0.0",
+    "scheme": "nightcap",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -31,7 +32,20 @@
         {
           "photosPermission": "스크린샷을 스택에 담으려면 사진 접근 권한이 필요해요.",
           "savePhotosPermission": false,
-          "granularPermissions": ["photo"]
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "androidIntentFilters": ["text/*", "image/*"],
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
+            "NSExtensionActivationSupportsImageWithMaxCount": 1
+          }
         }
       ],
       "./plugins/withKotlinJvmTargetFix.js"

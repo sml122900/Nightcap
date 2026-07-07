@@ -50,6 +50,13 @@ export async function undoVerdict(db: SQLiteDatabase, id: string): Promise<void>
   );
 }
 
+export async function getTodayStackCount(db: SQLiteDatabase): Promise<number> {
+  const row = await db.getFirstAsync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM captures WHERE triaged_at IS NULL`
+  );
+  return row?.count ?? 0;
+}
+
 export async function getLibrary(db: SQLiteDatabase, minStars?: number): Promise<(Capture & { stars: number })[]> {
   const rows = minStars
     ? await db.getAllAsync<CaptureRow>(
