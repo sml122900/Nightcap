@@ -6,11 +6,12 @@
 
 **완료 (W1, W2, W3-1, W3-2)**
 - 정리 모드 스와이프 엔진: 4방향 제스처(보류/이전/삭제/별점모드) + 별점 모드(도킹+드래그+접근성) — `app/src/components/triage/`, `app/src/constants/swipeEngine.ts`
-- SQLite 영속화 + 마이그레이션(v3까지: captures/meta/content_hash) — `app/src/db/`
+- SQLite 영속화 + 마이그레이션(v5까지: captures/meta/content_hash/source_author + 1회성 엔티티 디코딩 데이터 정리) — `app/src/db/`
 - 휴지통(소프트 삭제 7일 + 세션종료 일괄 삭제 + 강제종료 재시도) — `app/src/services/trash.ts`
 - 완료 요약 / 보관함 / 휴지통 화면 — `app/src/screens/`
 - 스크린샷 스캔 파이프라인 — `app/src/services/screenshotScan.ts`: 권한 요청(`photo` 세분화 권한, `accessPrivileges` 부분접근 판별) → `Screenshots` 앨범(+파일명 폴백) 스캔 → 앱 샌드박스 사본 복사(`copyToSandbox`, export돼 공유시트 경로와 공유) → DRM 휘도 판별(`isLikelyDrm`, `react-native-image-colors`, 임계값은 `app/src/constants/drm.ts`) → `captures` INSERT. **W3-2부터 기본 OFF** — 설정 화면 토글로만 켜짐(`app/src/services/settings.ts`, `meta` 테이블).
-- 카드/보관함/휴지통/별점모드 실이미지 렌더(`CoverImage` top-crop 컴포넌트), DRM 카드 제목 직접입력(TextInput)
+- 카드/보관함/휴지통/별점모드 실이미지 렌더(`CoverImage` — 이미지·컨테이너 비율을 비교해 세로로 긴 스샷은 상단 기준 크롭, 가로로 긴 링크 썸네일은 높이 기준 중앙 크롭으로 자동 분기), DRM 카드 제목 직접입력(TextInput)
+- **공유 링크 메타데이터 보강** — `app/src/services/urlMetadata.ts`: 유튜브 oEmbed 직행 → 그 외 도메인은 oEmbed 디스커버리 → `og:title`/`og:image`/`og:site_name` 파싱, 3초 타임아웃/실패 시 조용히 폴백(원칙 예외 배경은 `docs/decisions/url-metadata-fetch.md`). `shareIntake.ts`가 카드 INSERT 직후 비동기로 title/`source_author`/썸네일(`image_uri`, 샌드박스 사본화)을 UPDATE. 인스타 og:title `"{author} on Instagram: ..."` 패턴 분리, X는 URL의 `@handle`을 게시자로(oEmbed/og가 로그인 벽으로 막히는 곳이라 URL 패턴 폴백 우선), 스크랩 텍스트는 `app/src/utils/htmlEntities.ts`로 HTML 엔티티 디코딩. 보관함 상세 화면 제목 편집을 `kind` 무관 전체 허용 + `source_url` 있으면 "원본 열기"(`Linking.openURL`, 정리 모드 카드에는 없음).
 - **홈/정리 화면 분리 + 유입 경로를 공유시트로 전환(W3-2)** — 배경/근거는 `docs/decisions/share-intent-primary-ingestion.md`.
   - `app/src/screens/HomeScreen.tsx` 신설: 앱 기본 화면, 오늘 담은 캡처 개수 + "정리 시작" 버튼. `TriageScreen`(스와이프 UI)은 이제 명시적으로 진입/종료(`onExit`)하는 별도 화면.
   - `expo-share-intent`(v8, native module) 도입 — `App.tsx`의 `RootNavigator`에서 `useShareIntent()`로 항상 수신 → `app/src/services/shareIntake.ts`의 `ingestShareIntent`가 이미지(사본복사+DRM판별 재사용, `content_hash` SHA-256 dedup)/URL·텍스트(`source_url`+`sourceAppFromUrl`로 출처 추론, `app/src/constants/sourceApps.ts`) 분기 INSERT → 홈으로 이동 + 토스트("스택에 담았어요"), 정리 모드로 안 끌고 감.
@@ -144,7 +145,7 @@ SQLite 스키마 변경은 `PRAGMA user_version` 마이그레이션 러너(`app/
 - `app/AGENTS.md`: Expo SDK57 API는 자주 바뀐다. 코드 작성 전 실제 `.d.ts` 또는 버전별 공식 문서(`docs.expo.dev/versions/v57.0.0/`)로 시그니처를 확인한다.
 - 예: `expo-media-library`/`expo-file-system`의 구 자유 함수(`deleteAssetsAsync`, `FileSystem.deleteAsync`)는 SDK57에서 legacy로 이동/런타임 예외 대상 — 클래스 기반 API(`Asset.delete`, `new File(uri).delete()`)로 교체됨.
 
-전부 로컬: 서버·계정·API 호출 없음. Supabase 동기화/공유 링크는 v2 백로그(PROJECT.md §9 "제외" 목록) — 사용자 확인 없이 착수 금지.
+유저 데이터는 전부 로컬. 단, 유저가 공유한 공개 URL의 메타데이터(제목/썸네일)를 해당 플랫폼 공개 엔드포인트에서 읽는 것은 허용 — 키/계정/자체서버 불요, 실패해도 기능 동작에 지장 없어야 함(graceful). 배경/범위는 `docs/decisions/url-metadata-fetch.md`. 이 예외를 벗어나는 서버·계정 연동(Supabase 동기화/공유 링크 등)은 v2 백로그(PROJECT.md §9 "제외" 목록) — 사용자 확인 없이 착수 금지.
 
 기술 스택 (변경 시 반드시 사용자에게 확인)
 
@@ -163,11 +164,14 @@ SQLite 스키마 변경은 `PRAGMA user_version` 마이그레이션 러너(`app/
 지뢰 목록 (밟았던 버그/삽질 — 재발 금지)
 
 - Metro `/status` 200 응답만 보고 "내 프로젝트 서버"라고 가정 금지 — 다른 프로젝트(`power-nap`)의 좀비 Metro가 8081을 점유했던 사례. 의심되면 실제 번들 엔드포인트(`/index.ts.bundle?...`) 응답에 찍히는 origin 경로로 확인(`docs/troubleshooting/stray-metro-process-wrong-project.md`).
+- Nightcap의 Metro는 항상 8081 포트만 쓴다 — 포트 충돌 시(위 좀비 Metro 사례처럼 다른 프로젝트가 8081을 점유) `expo start`가 제안하는 대체 포트(8082 등)로 넘어가지 말고, 점유 프로세스를 확인해서 정리한 뒤 8081을 그대로 쓴다. 기기 쪽 `adb reverse tcp:8081 tcp:8081`과 맞춰야 하므로 포트를 바꾸면 기기 연결이 깨진다.
 - 새 Bash 셸엔 `JAVA_HOME`/`ANDROID_HOME`이 비어있을 수 있다 — 네이티브 리빌드 전 매번 확인.
 - 목데이터(`MOCK_CAPTURES`) 단계라 `asset_id`/`image_uri`가 항상 비어있음 — 사진첩 일괄 삭제·purge 로직은 코드는 맞아도 아직 실제 파일에는 동작하지 않는다는 걸 잊지 말 것.
 - Android `FLAG_SECURE`(넷플릭스 등 DRM) 콘텐츠는 스크린샷 자체가 OS에서 차단돼 파일이 생성되지 않는다 — 스크린샷 스캔 경로로는 절대 유입 불가. DRM 분기는 스샷이 아닌 다른 캡처 경로(v2 Share Extension/공유시트)가 붙어야 실사용 가능해지고, 지금은 로직 검증용으로만 존재(검증 시 완전 검정 이미지를 전체화면으로 띄워 찍은 스샷으로 대체 테스트).
 - 서드파티 네이티브 모듈이 AGP 버전 조건부로 Kotlin/Java JVM 타깃 설정을 건너뛰어(dead code) 릴리즈 빌드가 실패할 수 있다 — `android/build.gradle`을 직접 고쳐도 `expo prebuild`가 매번 지우므로, 고정은 반드시 config plugin(`app/plugins/withKotlinJvmTargetFix.js`)으로. `docs/troubleshooting/kotlin-jvm-target-mismatch-release-build.md` 참고.
 - 릴리즈 빌드+설치가 다 끝났는데도 `expo run:android`가 응답 없이 멈춰 있으면, 로그가 없다고 바로 "멈췄다"고 판단하지 말고 데몬 CPU 사용률·APK 산출물 타임스탬프·기기 화면 잠금 상태부터 확인할 것 — 화면이 잠겨있으면 마지막 `am start` 단계에서 그냥 대기만 하고 있는 것일 수 있다. `docs/troubleshooting/adb-install-hang-locked-device.md` 참고.
+- `expo-crypto`의 `Crypto.digest()`에 다른 네이티브 모듈(`expo-file-system`의 `File.arrayBuffer()` 등)이 반환한 순수 `ArrayBuffer`를 그대로 넘기면 안드로이드에서 `no ArrayBuffer attached`로 조용히 실패한다 — `new Uint8Array(buffer)`로 감싸서 TypedArray 뷰로 넘길 것. `docs/troubleshooting/expo-crypto-digest-arraybuffer-attach.md` 참고.
+- 이미지 크롭 컴포넌트(`CoverImage`)를 세로 이미지(스크린샷) 기준으로만 짜지 말 것 — 가로형 이미지(링크 썸네일 등)가 들어오면 크롭 방향이 반대여야 한다. 컨테이너/이미지 비율을 실측 비교해서 분기하는 현재 구현이 정답. `docs/troubleshooting/coverimage-landscape-thumbnail-empty-space.md` 참고.
 
 코드 규칙
 
