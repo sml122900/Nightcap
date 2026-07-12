@@ -14,12 +14,17 @@ W3-2(공유시트 유입 전환) 반영 후 `expo run:android --variant release`
 
 ## 최종 해결법
 
-세션 종료 시점까지 실기기 화면으로 앱이 실제로 열려 있는지 육안 확인은 못 함 — **다음 세션에서 USB 재연결 후 직접 확인 필요** (미해결, 다음 To-Do로 이월).
+2026-07-13 세션에서 재확인 완료. USB 재연결 후 같은 패턴(빌드 전 `adb shell input keyevent KEYCODE_WAKEUP`으로 화면 깨우기 → 빌드는 타임아웃 600000ms 백그라운드 실행 → 완료 후 `adb shell dumpsys package <pkg> | grep lastUpdateTime`로 설치 확인 → `adb shell dumpsys activity activities | grep ResumedActivity`로 실행 확인)으로 진행:
+
+- 빌드 성공: `BUILD SUCCESSFUL in 3m 30s` (이번엔 대부분 UP-TO-DATE라 이전 9m32s보다 짧음)
+- 설치 확인: `lastUpdateTime=2026-07-13 02:06:42`
+- 실행 확인: `ResumedActivity: ActivityRecord{... com.anonymous.nightcap/.MainActivity ...}` — 앱이 실제로 포그라운드에서 실행 중임을 확인
 
 다음번엔 이 패턴을 피하려면:
 - 릴리즈 빌드+설치+실행까지 기다릴 땐 타임아웃을 컴파일 시간(이번 케이스 9분대)보다 넉넉히(15분 이상) 잡거나, 애초에 빌드만 기다리고 실행 확인은 별도 스텝(`adb shell am start` 직접 호출)으로 분리한다
 - "CLI 프로세스가 살아있는지"가 아니라 APK 파일 타임스탬프 + `adb shell dumpsys package <pkg> | grep lastUpdateTime`으로 설치 완료 여부를 판단한다(`docs/troubleshooting/adb-install-hang-locked-device.md`와 같은 원칙)
 - adb 인가 상태는 같은 세션 안에서도 재승인 팝업 없이 조용히 `unauthorized`로 되돌아갈 수 있다 — 기기가 안 잡히면 바로 "빌드 실패"로 보지 말고 USB 연결 자체부터 재확인한다
+- 실행 여부는 `am start` 호출 로그가 아니라 `dumpsys activity activities`의 `ResumedActivity`로 확정하는 게 가장 확실하다(설치는 됐는데 화면 잠금 등으로 실행만 안 된 경우와 구분 가능)
 
 ## 이력서 소재 한 줄
 
