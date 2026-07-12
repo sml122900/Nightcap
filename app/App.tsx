@@ -8,19 +8,26 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokens } from './src/constants/tokens';
 import { initDb } from './src/db/init';
 import { ingestShareIntent } from './src/services/shareIntake';
+import { getOnboardingCompleted } from './src/services/settings';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { TriageScreen } from './src/screens/TriageScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
 import { TrashScreen } from './src/screens/TrashScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 
-type Screen = 'home' | 'triage' | 'library' | 'trash' | 'settings';
+type Screen = 'onboarding' | 'home' | 'triage' | 'library' | 'trash' | 'settings';
 
 function RootNavigator() {
   const db = useSQLiteContext();
-  const [screen, setScreen] = useState<Screen>('home');
+  const [screen, setScreen] = useState<Screen | null>(null);
   const [shareToastNonce, setShareToastNonce] = useState(0);
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+
+  useEffect(() => {
+    getOnboardingCompleted(db).then((completed) => setScreen(completed ? 'home' : 'onboarding'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db]);
 
   useEffect(() => {
     if (!hasShareIntent) return;
@@ -48,6 +55,12 @@ function RootNavigator() {
     return () => sub.remove();
   }, [screen]);
 
+  if (screen === null) {
+    return <View style={styles.root} />;
+  }
+  if (screen === 'onboarding') {
+    return <OnboardingScreen onComplete={() => setScreen('home')} />;
+  }
   if (screen === 'library') {
     return <LibraryScreen onBack={() => setScreen('home')} onOpenTrash={() => setScreen('trash')} />;
   }

@@ -18,10 +18,10 @@
   - 보관함 상세 화면(`app/src/screens/LibraryDetailScreen.tsx`) 신설: 원본 이미지 전체보기, 별점 수정(별점 모드 `RateModeLayer` 재사용 + `onBackgroundTap` 옵션 prop으로 실수 덮어쓰기 방지), DRM 제목 수정, 삭제. `LibraryScreen`이 자체 `selectedId`/`BackHandler`로 서브화면 관리(`App.tsx` 미변경).
   - Android edge-to-edge 하단 잘림 수정: 전 화면 `SafeAreaView edges={['top']}` + `useSafeAreaInsets().bottom`을 스크롤/하단 고정 요소에 명시적으로 더하는 방식으로 통일.
   - 설정 화면(`app/src/screens/SettingsScreen.tsx`) 신설: 스크린샷 자동 수집 토글 1개(기본 OFF).
+- **첫 실행 온보딩(3장, W3-2)** — `app/src/screens/OnboardingScreen.tsx` 신설: 탭으로 넘기는 3단계(정체성 공감 카피 → 공유시트 사용법 스켈레톤 목업 → 자동 수집 권한 토글+CTA). 완료 여부는 `meta.onboarding_completed_at`(`app/src/services/settings.ts`의 `getOnboardingCompleted`/`setOnboardingCompleted`, 기존 `auto_scan_enabled`와 같은 upsert 패턴)로 저장 — `App.tsx`의 `RootNavigator`가 마운트 시 이 플래그를 읽어 미완료면 온보딩을, 완료면 기존 홈 로직을 그대로 태운다. 3장 토글 ON 시 `requestMediaAccess()`(기존엔 어디서도 호출 안 되던 정식 권한 요청 함수)를 호출하고 결과와 무관하게 진행 — 거부해도 스캔 파이프라인이 조용히 no-op하므로 별도 분기 불필요. iOS 백탭/버블 GIF 온보딩은 이걸로 대체(아래 참고).
 
 **진행 중 아님 / 다음 단계 (W4~)**
 - 공유 카드 화면(Letterboxd 스타일)
-- iOS 백탭 온보딩(GIF) — 공유시트가 주 경로가 된 이후 우선순위 낮아짐
 - 보관함 진짜 메이슨리(현재는 고정 2열 그리드로 단순화됨)
 - `DRM_LUMINANCE_THRESHOLD` 실기기 튜닝(다크모드 오탐 체크 포함, 아직 미검증)
 - iOS 공유시트(Share Extension) 실기기 검증 — macOS/Xcode 환경이 없어 이번 라운드는 Android(`expo run:android`)만 실기기 확인, iOS는 `expo prebuild`까지만(네이티브 프로젝트 생성 확인) 하고 실행은 못 함
