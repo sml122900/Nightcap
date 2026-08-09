@@ -4,7 +4,14 @@
 
 ## 진행상황
 
-**완료 (W1, W2, W3-1, W3-2, W3-3)**
+**완료 (W1, W2, W3-1, W3-2, W3-3, 디자인 시스템/라이트 모드)**
+- **디자인 시스템 + 라이트 모드** — 스펙과 배경은 PROJECT.md §5(디자인 시스템) / §4(화면별 테마 배정). 기능 변경 0의 순수 리페인트.
+  - `app/src/theme/` 신설: `tokens.ts`(역할 기반 시맨틱 토큰 + dark/light/cinema 3팔레트 + space/radius/type/shadow/motion), `ThemeProvider.tsx`(`useTheme(surface?)`/`useCinema()`/`useThemeMode()`), `makeStyles.ts`(팔레트별 1회 생성·캐시하는 스타일 팩토리 훅), `SystemBars.tsx`(화면별 StatusBar + Android 내비바 버튼색), `colorClamp.ts`(+`colorClamp.test.ts`).
+  - 구 `app/src/constants/tokens.ts`는 소비자 0이 되어 삭제. 색상 리터럴은 `theme/tokens.ts` 안에만 있다.
+  - migration v7: `meta.theme_mode` 기본 `'dark'` 명시 삽입(값 없음→system으로 흘러가면 기존 사용자가 폰 설정에 따라 조용히 뒤집힌다). 설정 화면에 3분기 세그먼트 UI.
+  - `npm test`(app/): `colorClamp` 8케이스를 tsc + node:test로 돌린다. jest 미도입 — RN import가 없는 순수 모듈 하나 때문에 러너를 들이지 않았다.
+  - 곁가지 정리: 터치 타겟 44pt 하한, 빈 상태 3곳 톤 통일, `CoverImage` 레터박스 색 부모 주입, `StarRating` 공통화, 전역 `maxFontSizeMultiplier` 1.4.
+  - **네이티브 리빌드 필요** — `expo-navigation-bar` 추가 + `app.json`의 `userInterfaceStyle`을 `"dark"`→`"automatic"`으로 바꿔야 `'system'` 모드가 동작한다(고정이면 `useColorScheme()`이 항상 dark). 아직 안 함.
 - 정리 모드 스와이프 엔진: 4방향 제스처(보류/이전/삭제/별점모드) + 별점 모드(도킹+드래그+접근성) — `app/src/components/triage/`, `app/src/constants/swipeEngine.ts`
 - SQLite 영속화 + 마이그레이션(v5까지: captures/meta/content_hash/source_author + 1회성 엔티티 디코딩 데이터 정리) — `app/src/db/`
 - 휴지통(소프트 삭제 7일 + 세션종료 일괄 삭제 + 강제종료 재시도) — `app/src/services/trash.ts`
@@ -32,6 +39,9 @@
 - iOS 공유시트(Share Extension) 실기기 검증 — macOS/Xcode 환경이 없어 이번 라운드는 Android(`expo run:android`)만 실기기 확인, iOS는 `expo prebuild`까지만(네이티브 프로젝트 생성 확인) 하고 실행은 못 함
 
 **알려진 제약**
+- 라이트 모드는 실기기 육안 확인 전 — 코드상 대비는 맞췄지만(4.5:1 기준) 실제로 본 적은 없다. 시네마↔테마 경계(보관함 상세)와 Android 내비바 버튼색이 특히 확인 대상
+- 추출색 클램프(`theme/colorClamp.ts`)는 만들어뒀지만 **소비자가 없다** — 보관함 셀 틴트를 붙이는 건 기능 추가라 이번 리페인트 범위 밖으로 뒀다
+- 보관함은 여전히 고정 2열 그리드(진짜 메이슨리 아님) — 디자인 시스템 작업에서 건드리지 않았다
 - 별점 모드 손맛/접근성은 실기기 육안·TalkBack 확인이 아직 필요
 - 릴리즈 빌드는 실기기(Galaxy S24+)에 설치까지 확인됨. 다만 스캔/DRM/휴지통 등 실제 기능 동작은 PROJECT.md 체크리스트로 수동 검증 필요 — 공유시트 유입 경로(이미지/URL 공유)는 이번 라운드에 dev-client 빌드 후 실기기로 검증 예정(사용자 확인 필요, PROJECT.md §7 체크리스트)
 - 2026-08-09: W3-3 네이티브 리빌드(dev-client debug) + 설치까지 확인(`adb install` Success, `lastUpdateTime` 갱신, `dumpsys shortcut`에 share-target 등록). 지시대로 `am start`는 하지 않음 — 실제 기능(공유시트 상단 노출/클립보드 병합/공유 카드 이미지)은 실기기 수동 검증 필요

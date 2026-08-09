@@ -90,31 +90,95 @@ npx expo prebuild
 - 별점 배지: 소수 1자리 표기 (예: ★3.5)
 - 필터 칩: 전체 / 4.5↑ / 4.0↑ / 3.0↑ (해당 별점 이상 구간 필터)
 
-## 5. 디자인 토큰
+**화면별 테마 배정**(§5.3):
 
-프로토타입(nightcap-prototype.html)의 CSS 변수가 원본. 그대로 이식:
+| 화면 | 테마 |
+|---|---|
+| 온보딩 / 홈 / 완료 요약 / 보관함 / 휴지통 / 설정 / 권한거부 | 테마 따름 |
+| 정리 모드(별점 모달 포함) | 시네마 고정 |
+| 보관함 상세 | 혼합 — 이미지=시네마 / 메타·편집=테마 |
+| 공유 카드 | `cardRef` 안=다크 고정 / 바깥 크롬=테마 따름 |
+
+## 5. 디자인 시스템 (토큰 + 테마)
+
+단일 소스는 `app/src/theme/tokens.ts`. **이 파일 밖에 색상 리터럴을 두지 않는다.**
+(프로토타입 CSS 변수에서 출발했지만 라이트 모드 도입 시점에 역할 기반 이름으로 재정의됐다 —
+`surface2`/`text3` 같은 값 기반 이름은 라이트에서 뒤집히면 이름이 거짓말이 되기 때문.)
+
+### 5.1 원칙 (충돌 시 이 순서)
+
+1. 콘텐츠가 주인공. 커버 이미지가 있는 화면에서 UI는 물러난다.
+2. 밤이 기본. 라이트는 동등한 시민이되 기본값은 아니다.
+3. 강조색은 하나 — 별점 골드(`accent`). 나머지는 중립 + 의미색(`danger`/`defer`)뿐.
+4. 손맛 상수 불가침. 스와이프 임계값·회전·스프링은 §6/`constants/swipeEngine.ts` 소관이고
+   디자인 토큰과 같은 파일에 두지 않는다.
+
+### 5.2 팔레트 3종
+
+| 팔레트 | 언제 |
+|---|---|
+| `dark` | 기본값. `theme_mode`가 dark이거나 system→다크일 때 |
+| `light` | `theme_mode`가 light이거나 system→라이트일 때 |
+| `cinema` | 테마 무관 고정. 콘텐츠가 주인공인 서페이스 전용 |
+
+토큰 이름은 역할 기반: `bg` / `surface` / `surfaceRaised` / `border` / `textPrimary` /
+`textSecondary` / `textTertiary` / `accent` / `accentMuted` / `onAccent` / `danger` /
+`dangerMuted` / `defer` / `deferMuted` / `control` / `overlay`,
+그리고 판정 오버레이용 반투명 `accentScrim`·`dangerScrim`·`deferScrim`,
+사용자 스샷 위에 얹혀 전 팔레트 공통인 `imageScrim`·`imageScrimSoft`·`onImage`·`shadowColor`.
+
+라이트의 `accent`(#C99400)가 다크(#F5C451)보다 어두운 건 의도 — 흰 배경에서 4.5:1 확보용.
+
+그림자는 **라이트에만** 있다(`shadow.card`/`shadow.modal`). 다크에서 층 구분은 그림자가 아니라
+`surface` → `surfaceRaised` 명도차로 만든다. 예외는 정리 덱 카드 하나 — 거기선 그림자가 장식이
+아니라 카드끼리 겹친 걸 분리하는 유일한 수단이다.
+
+그 외: `space`(4/8/12/16/24/32/40), `radius`(chip 8 / card 12 / sheet 20 / full 999),
+`type`(display/title/heading/body/meta/caption), `motion`(fast 140 / base 220 / slow 380).
+폰트는 시스템 스택 유지. 위계는 색이 아니라 weight + letterSpacing으로. 그라데이션·장식 아이콘 금지.
+`allowFontScaling`은 켜두되 App.tsx에서 전역 `maxFontSizeMultiplier = 1.4`로 상한을 건다.
+
+### 5.3 시네마 서페이스
+
+`ResolvedTheme`를 무시하고 항상 어두운 팔레트를 쓰는 영역:
+
+- **Triage 화면 전체** (덱·카드·판정 오버레이·별점 모달·하단 컨트롤)
+- **LibraryDetail의 이미지 영역만** — 하단 메타/편집은 테마를 따르고, 경계에 구분선을 두지 않는다
+- 커버 이미지 위에 얹히는 배지(보관함 그리드 별점 배지 등)
+
+**공유 카드는 시네마가 아니라 `dark` 고정이다.** 출력물이라 뷰어 테마에 따라 결과 PNG가 달라지면 안 된다.
+헤더/버튼 등 `cardRef` 밖 크롬은 테마를 따른다.
+
+### 5.4 사용법
 
 ```ts
-export const tokens = {
-  bg: '#000000',        // OLED 순수 블랙 — 발광 최소화
-  surface: '#121214',
-  surface2: '#1a1a1e',
-  surface3: '#26262b',
-  border: '#26262b',
-  borderStrong: '#34343a',
-  text: '#f4f4f5',
-  text2: '#8e8e96',
-  text3: '#55555c',
-  brand: '#f5b942',     // 앰버 = 별점의 색. 유일한 브랜드 컬러
-  brandDim: 'rgba(245,185,66,.14)',
-  danger: '#e5484d',    // 버림 전용
-  radius: 20,
-  radiusSm: 12,
-};
+const useStyles = makeStyles((t) => ({ screen: { backgroundColor: t.c.bg } }));
+// 컴포넌트 안에서
+const styles = useStyles();          // 테마 따름
+const styles = useStyles('cinema');  // 시네마 고정
+const styles = useStyles('dark');    // 다크 고정(공유 카드)
 ```
 
-- 폰트: 시스템 스택 (iOS Apple SD Gothic Neo / Android는 Pretendard 번들 권장). 위계는 색이 아니라 weight(600/700/800) + letterSpacing(-0.02 ~ -0.05em)으로.
-- 그라데이션 금지, 장식 아이콘 금지 (탭바 2개 예외). 요약 화면만 앰버 블록 허용.
+- 팔레트별로 1회만 `StyleSheet.create`되어 캐시된다. 그래서 팩토리 안에서 `t.mode`/`t.resolved`로
+  분기하면 안 된다 — 팔레트로만 갈린다.
+- 색을 값으로 써야 하면(`placeholderTextColor`, `ActivityIndicator color` 등) `useTheme()`/`useCinema()`.
+- 화면마다 `<SystemBars />`를 선언한다(시네마 화면은 `surface="cinema"`). StatusBar 아이콘과 Android
+  내비바 버튼 색이 여기서 갈린다.
+
+### 5.5 저장/부팅
+
+`meta.theme_mode`(migration v7, 기본 `'dark'`). `ThemeProvider`가 이 값을 읽기 전에는 children을
+렌더하지 않는다 — 다크로 그렸다가 라이트로 튀는 플래시를 막기 위해서다.
+`'system'`이 실제로 동작하려면 `app.json`의 `userInterfaceStyle`이 `"automatic"`이어야 한다
+(`"dark"` 고정이면 `useColorScheme()`이 항상 dark를 반환한다).
+
+### 5.6 추출색(image-colors) 규칙
+
+`theme/colorClamp.ts`(순수 함수 + `npm test`). 커버에서 뽑은 지배색은
+① 배경 틴트로만 쓰고 텍스트/아이콘 색으로는 절대 쓰지 않으며,
+② 채도 0.5 상한 + 명도를 다크 0.12~0.28 / 라이트 0.82~0.94로 리맵하고,
+③ 그러고도 텍스트와 4.5:1 미달이면 폐기하고 `surface`로 떨어진다(폴백이 기본값).
+현재 이 클램프를 소비하는 화면은 없다 — 보관함 셀 틴트는 아직 붙이지 않았다.
 
 ## 6. 스와이프 엔진 스펙 (프로토타입 검증값)
 
