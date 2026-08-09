@@ -45,7 +45,8 @@
           }
         }
       ],
-      "./plugins/withKotlinJvmTargetFix.js"
+      "./plugins/withKotlinJvmTargetFix.js",
+      "./plugins/withDirectShareShortcut.js"
     ]
   }
 }
