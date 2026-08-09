@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { tokens } from '../constants/tokens';
 import { applyVerdict } from '../db/queries';
 import { enqueueWrite } from '../db/writeQueue';
+import { unlinkCapture } from '../services/clipboardLink';
 import { RateModeLayer } from '../components/triage/RateModeLayer';
 import { Capture } from '../types/capture';
 
@@ -21,6 +22,7 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
   const [title, setTitle] = useState(item.title);
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const [isEditingStars, setIsEditingStars] = useState(false);
+  const [sourceUrl, setSourceUrl] = useState(item.sourceUrl);
 
   const handleStarsCommit = (value: number) => {
     setStars(value);
@@ -35,6 +37,13 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
     enqueueWrite(item.id, async () => {
       await db.runAsync('UPDATE captures SET title = ? WHERE id = ?', text, item.id);
     }).catch((err) => console.warn('[libraryDetail] title update failed', err));
+  };
+
+  const handleUnlink = () => {
+    setSourceUrl(undefined);
+    enqueueWrite(item.id, () => unlinkCapture(db, item.id)).catch((err) =>
+      console.warn('[libraryDetail] unlink failed', err)
+    );
   };
 
   const handleDelete = () => {
@@ -99,15 +108,26 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
             <Text style={styles.starEdit}>별점 수정</Text>
           </Pressable>
 
-          {item.sourceUrl ? (
-            <Pressable
-              onPress={() => Linking.openURL(item.sourceUrl!)}
-              style={styles.openOriginalBtn}
-              accessibilityRole="button"
-              accessibilityLabel="원본 열기"
-            >
-              <Text style={styles.openOriginalText}>원본 열기</Text>
-            </Pressable>
+          {sourceUrl ? (
+            <>
+              <Pressable
+                onPress={() => Linking.openURL(sourceUrl)}
+                style={styles.openOriginalBtn}
+                accessibilityRole="button"
+                accessibilityLabel="원본 열기"
+              >
+                <Text style={styles.openOriginalText}>원본 열기</Text>
+              </Pressable>
+              {/* 클립보드 병합은 틀릴 수 있다 — 잘못 붙은 링크를 뗄 수 없으면 기능 자체가 불신됨(W3-3 C). */}
+              <Pressable
+                onPress={handleUnlink}
+                style={styles.unlinkBtn}
+                accessibilityRole="button"
+                accessibilityLabel="링크 해제"
+              >
+                <Text style={styles.unlinkText}>링크 해제</Text>
+              </Pressable>
+            </>
           ) : null}
         </View>
 
@@ -241,6 +261,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: tokens.text,
+  },
+  unlinkBtn: {
+    marginTop: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  unlinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: tokens.text3,
   },
   deleteBtn: {
     marginTop: 28,

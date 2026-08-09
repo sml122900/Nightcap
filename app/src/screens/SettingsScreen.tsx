@@ -96,6 +96,10 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
                 <Stat label="담은 캡처" value={`${metrics.captures}개`} />
                 <Stat label="링크 포함 비율" value={pct(metrics.linkRatio)} />
                 <Stat
+                  label="클립보드 병합(누적)"
+                  value={`${metrics.clipboardMerges} / ${metrics.clipboardAttempts}회 시도`}
+                />
+                <Stat
                   label="유입 경로"
                   value={
                     metrics.intake.length === 0

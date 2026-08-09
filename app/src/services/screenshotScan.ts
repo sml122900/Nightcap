@@ -3,6 +3,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { SQLiteDatabase } from 'expo-sqlite';
 import { getColors } from 'react-native-image-colors';
 import { DRM_LUMINANCE_THRESHOLD } from '../constants/drm';
+import { mergeClipboardUrl } from './clipboardLink';
 
 const CAPTURES_DIR_NAME = 'captures';
 const LAST_SCAN_KEY = 'last_scan_at';
@@ -143,6 +144,9 @@ export async function scanNewScreenshots(db: SQLiteDatabase): Promise<void> {
 
     let firstFailureAt: number | null = null;
     let maxSeenAt = lastSync;
+    // The clipboard holds at most one link, so it can only belong to one of this batch's
+    // screenshots — the first new one. Attaching it to all of them would be a guess (W3-3 C).
+    let clipboardOffered = false;
 
     for (const meta of candidates) {
       if (meta.creationTime === null) continue;
@@ -157,7 +161,7 @@ export async function scanNewScreenshots(db: SQLiteDatabase): Promise<void> {
 
         const isDrm = await isLikelyDrm(destFile.uri);
 
-        await db.runAsync(
+        const inserted = await db.runAsync(
           `INSERT OR IGNORE INTO captures (id, created_at, asset_id, image_uri, is_drm, kind, intake_source)
            VALUES (?, ?, ?, ?, ?, ?, 'screenshot_scan')`,
           meta.id,
@@ -167,6 +171,11 @@ export async function scanNewScreenshots(db: SQLiteDatabase): Promise<void> {
           isDrm ? 1 : 0,
           isDrm ? 'drm' : 'video'
         );
+
+        if (inserted.changes > 0 && !clipboardOffered) {
+          clipboardOffered = true;
+          await mergeClipboardUrl(db, meta.id);
+        }
 
         maxSeenAt = meta.creationTime;
       } catch (err) {

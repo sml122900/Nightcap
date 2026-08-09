@@ -50,5 +50,6 @@ export function rowToCapture(row: CaptureRow): Capture {
     progress: (row.progress as Capture['progress']) ?? undefined,
     imageUri: row.image_uri ?? undefined,
     sourceUrl: row.source_url ?? undefined,
+    hasLink: row.has_link === 1,
   };
 }

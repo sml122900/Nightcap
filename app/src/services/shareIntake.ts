@@ -4,6 +4,7 @@ import { ShareIntent, ShareIntentFile } from 'expo-share-intent';
 import { SQLiteDatabase } from 'expo-sqlite';
 import { enqueueWrite } from '../db/writeQueue';
 import { fallbackLabelFromUrl, sourceAppFromUrl, xAuthorFromUrl } from '../constants/sourceApps';
+import { mergeClipboardUrl } from './clipboardLink';
 import { copyToSandbox, downloadToSandbox, isLikelyDrm } from './screenshotScan';
 import { fetchUrlMetadata } from './urlMetadata';
 
@@ -26,7 +27,7 @@ async function ingestImageFile(db: SQLiteDatabase, file: ShareIntentFile): Promi
   const contentHash = await hashFile(destFile);
   const isDrm = await isLikelyDrm(destFile.uri);
 
-  await db.runAsync(
+  const inserted = await db.runAsync(
     `INSERT OR IGNORE INTO captures (id, created_at, image_uri, content_hash, is_drm, kind, intake_source)
      VALUES (?, ?, ?, ?, ?, ?, 'share_image')`,
     id,
@@ -36,6 +37,9 @@ async function ingestImageFile(db: SQLiteDatabase, file: ShareIntentFile): Promi
     isDrm ? 1 : 0,
     isDrm ? 'drm' : 'video'
   );
+
+  // A shared image carries no link of its own — same structural gap as a screenshot (W3-3 C).
+  if (inserted.changes > 0) await mergeClipboardUrl(db, id);
 }
 
 /** Best-effort title candidate from shared text — falls through to the URL itself if the text IS the URL. */

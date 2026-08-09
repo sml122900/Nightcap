@@ -63,6 +63,13 @@ export function CardContent({ item, onTitleChange }: CardContentProps) {
         <Text style={styles.src} numberOfLines={1}>
           {item.app} · {item.src}
         </Text>
+        {/* The clipboard merge is invisible otherwise — the user has to see when it fires to
+            learn the rule "링크 복사해두고 스샷 찍으면 붙는다" (W3-3 C). */}
+        {item.hasLink ? (
+          <View style={styles.linkChip}>
+            <Text style={styles.linkChipText}>🔗 링크 포함</Text>
+          </View>
+        ) : null}
       </View>
     </>
   );
@@ -182,5 +189,18 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: tokens.text3,
     letterSpacing: -0.1,
+  },
+  linkChip: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: tokens.brandDim,
+  },
+  linkChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: tokens.brand,
   },
 });

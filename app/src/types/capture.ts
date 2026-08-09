@@ -13,6 +13,8 @@ export interface Capture {
   imageUri?: string;
   /** original share-sheet link, e.g. for the library detail screen's "원본 열기" — absent for pure screenshots */
   sourceUrl?: string;
+  /** a link is attached — surfaced on the card so the user learns when clipboard merge fired (W3-3 C) */
+  hasLink?: boolean;
 }
 
 /** Committed, DB-facing outcome — 'hold' isn't one: it's translated to rate@2.5 (see GestureAction). */

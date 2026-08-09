@@ -1,5 +1,6 @@
 import { SQLiteDatabase } from 'expo-sqlite';
 import { enqueueWrite } from '../db/writeQueue';
+import { CLIPBOARD_ATTEMPTS_KEY, CLIPBOARD_MERGES_KEY } from './clipboardLink';
 
 const WINDOW_DAYS = 14;
 const WINDOW_MS = WINDOW_DAYS * 24 * 60 * 60 * 1000;
@@ -80,6 +81,9 @@ export interface MetricsSummary {
   intake: IntakeBucket[];
   /** has_link=1 share of captures in the window; null when there are none */
   linkRatio: number | null;
+  /** clipboard-merge attempts / successes — lifetime totals, not windowed (W3-3 C) */
+  clipboardAttempts: number;
+  clipboardMerges: number;
 }
 
 function median(values: number[]): number | null {
@@ -117,6 +121,13 @@ export async function getMetricsSummary(db: SQLiteDatabase): Promise<MetricsSumm
     cutoff
   );
 
+  const counters = await db.getAllAsync<{ key: string; value: string }>(
+    `SELECT key, value FROM meta WHERE key IN (?, ?)`,
+    CLIPBOARD_ATTEMPTS_KEY,
+    CLIPBOARD_MERGES_KEY
+  );
+  const counterValue = (key: string) => Number(counters.find((row) => row.key === key)?.value ?? 0);
+
   const triaged = sessions.reduce((sum, s) => sum + s.kept + s.deferred + s.deleted, 0);
   const deferred = sessions.reduce((sum, s) => sum + s.deferred, 0);
   const durations = sessions
@@ -134,5 +145,7 @@ export async function getMetricsSummary(db: SQLiteDatabase): Promise<MetricsSumm
     captures,
     intake: intake.map((row) => ({ source: row.source ?? '미상', count: row.count })),
     linkRatio: captures === 0 ? null : (links?.linked ?? 0) / captures,
+    clipboardAttempts: counterValue(CLIPBOARD_ATTEMPTS_KEY),
+    clipboardMerges: counterValue(CLIPBOARD_MERGES_KEY),
   };
 }
