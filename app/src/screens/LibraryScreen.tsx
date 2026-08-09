@@ -3,7 +3,7 @@ import { BackHandler, FlatList, Pressable, StyleSheet, Text, View } from 'react-
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tokens } from '../constants/tokens';
-import { getLibrary, getTrashCount } from '../db/queries';
+import { getLibrary, getRatedCount, getTrashCount, SHARE_CARD_MIN_ITEMS } from '../db/queries';
 import { LibraryTile } from '../components/library/LibraryTile';
 import { LibraryDetailScreen } from './LibraryDetailScreen';
 import { Capture } from '../types/capture';
@@ -23,21 +23,29 @@ const FILTERS: { key: FilterKey; label: string; minStars?: number }[] = [
 interface LibraryScreenProps {
   onBack: () => void;
   onOpenTrash: () => void;
+  onOpenShareCard: () => void;
 }
 
-export function LibraryScreen({ onBack, onOpenTrash }: LibraryScreenProps) {
+export function LibraryScreen({ onBack, onOpenTrash, onOpenShareCard }: LibraryScreenProps) {
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [items, setItems] = useState<(Capture & { stars: number })[]>([]);
   const [trashCount, setTrashCount] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [ratedCount, setRatedCount] = useState(0);
 
   const reload = useCallback(async () => {
     const minStars = FILTERS.find((f) => f.key === filter)?.minStars;
-    const [library, count] = await Promise.all([getLibrary(db, minStars), getTrashCount(db)]);
+    // 별점 필터가 걸려 있어도 공유 카드 진입 조건은 보관함 전체 기준이라 따로 센다.
+    const [library, count, rated] = await Promise.all([
+      getLibrary(db, minStars),
+      getTrashCount(db),
+      getRatedCount(db),
+    ]);
     setItems(library);
     setTrashCount(count);
+    setRatedCount(rated);
   }, [db, filter]);
 
   useEffect(() => {
@@ -73,7 +81,13 @@ export function LibraryScreen({ onBack, onOpenTrash }: LibraryScreenProps) {
           <Text style={styles.ghostBtn}>닫기</Text>
         </Pressable>
         <Text style={styles.title}>보관함</Text>
-        <View style={{ width: 34 }} />
+        {ratedCount >= SHARE_CARD_MIN_ITEMS ? (
+          <Pressable onPress={onOpenShareCard} hitSlop={8} accessibilityRole="button" accessibilityLabel="공유 카드">
+            <Text style={styles.ghostBtn}>공유</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 34 }} />
+        )}
       </View>
 
       <View style={styles.chips}>

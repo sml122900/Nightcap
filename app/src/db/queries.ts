@@ -69,6 +69,52 @@ export async function getLibrary(db: SQLiteDatabase, minStars?: number): Promise
   return rows.map((row) => ({ ...rowToCapture(row), stars: row.stars ?? 0 }));
 }
 
+export const SHARE_CARD_MIN_ITEMS = 4;
+const SHARE_CARD_MAX_ITEMS = 9;
+
+export interface ShareCardData {
+  /** 별점 상위 4~9장 — 이보다 적으면 카드 자체가 성립하지 않아 진입 버튼이 숨겨진다 */
+  items: (Capture & { stars: number })[];
+  total: number;
+  avg: number;
+  from: number | null;
+  to: number | null;
+}
+
+/** 공유 카드 진입 버튼 노출 여부 판정용 — 4장 미만이면 카드가 성립하지 않아 버튼을 숨긴다. */
+export async function getRatedCount(db: SQLiteDatabase): Promise<number> {
+  const row = await db.getFirstAsync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM captures WHERE verdict = 'rated' AND deleted_at IS NULL`
+  );
+  return row?.count ?? 0;
+}
+
+/** 공유 카드(PROJECT.md §4 W3-3 D): "알고리즘 말고 내가 고른 피드"를 한 장으로 요약한 read model. */
+export async function getShareCardData(db: SQLiteDatabase): Promise<ShareCardData> {
+  const rows = await db.getAllAsync<CaptureRow>(
+    `SELECT * FROM captures WHERE verdict = 'rated' AND deleted_at IS NULL
+     ORDER BY stars DESC, triaged_at DESC LIMIT ?`,
+    SHARE_CARD_MAX_ITEMS
+  );
+  // `from`/`to` are reserved words in SQLite — alias them to first_at/last_at.
+  const summary = await db.getFirstAsync<{
+    total: number;
+    avg: number | null;
+    first_at: number | null;
+    last_at: number | null;
+  }>(
+    `SELECT COUNT(*) AS total, AVG(stars) AS avg, MIN(triaged_at) AS first_at, MAX(triaged_at) AS last_at
+     FROM captures WHERE verdict = 'rated' AND deleted_at IS NULL`
+  );
+  return {
+    items: rows.map((row) => ({ ...rowToCapture(row), stars: row.stars ?? 0 })),
+    total: summary?.total ?? 0,
+    avg: summary?.avg ?? 0,
+    from: summary?.first_at ?? null,
+    to: summary?.last_at ?? null,
+  };
+}
+
 /**
  * 휴지통: deleted_at으로부터 7일 이내인 항목만(§1 "7일 이내 복원 가능"). image_uri
  * 유무로 거르지 않는다 — 목데이터는 실제 캡처 파이프라인이 없어 image_uri가 항상

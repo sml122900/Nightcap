@@ -9,10 +9,12 @@ interface DoneScreenProps {
   topApp: string | null;
   onOpenLibrary: () => void;
   onRestart: () => void;
+  /** 별점 4장 미만이면 카드가 성립하지 않아 아예 넘어오지 않는다(undefined ⇒ 버튼 숨김, W3-3 D) */
+  onOpenShareCard?: () => void;
 }
 
 /** Wrapped-style takeover (PROJECT.md §4) — replaces the whole triage screen body when the stack empties. */
-export function DoneScreen({ session, topApp, onOpenLibrary, onRestart }: DoneScreenProps) {
+export function DoneScreen({ session, topApp, onOpenLibrary, onRestart, onOpenShareCard }: DoneScreenProps) {
   const avg = session.rated ? session.sum / session.rated : 0;
   const insets = useSafeAreaInsets();
 
@@ -36,6 +38,11 @@ export function DoneScreen({ session, topApp, onOpenLibrary, onRestart }: DoneSc
       </View>
 
       <View style={[styles.actions, { paddingBottom: insets.bottom + 20 }]}>
+        {onOpenShareCard ? (
+          <Pressable onPress={onOpenShareCard} style={styles.shareBtn} accessibilityRole="button">
+            <Text style={styles.shareText}>공유 카드 만들기</Text>
+          </Pressable>
+        ) : null}
         <Pressable onPress={onOpenLibrary} style={styles.primaryBtn} accessibilityRole="button">
           <Text style={styles.primaryText}>보관함 보기</Text>
         </Pressable>
@@ -133,6 +140,18 @@ const styles = StyleSheet.create({
   actions: {
     paddingHorizontal: 24,
     gap: 10,
+  },
+  shareBtn: {
+    paddingVertical: 17,
+    borderRadius: 16,
+    backgroundColor: tokens.brand,
+    alignItems: 'center',
+  },
+  shareText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0b0b0d',
+    letterSpacing: -0.2,
   },
   primaryBtn: {
     paddingVertical: 17,

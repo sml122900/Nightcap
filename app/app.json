@@ -37,7 +37,10 @@
       [
         "expo-share-intent",
         {
-          "androidIntentFilters": ["text/*", "image/*"],
+          "androidIntentFilters": [
+            "text/*",
+            "image/*"
+          ],
           "iosActivationRules": {
             "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
             "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
@@ -46,7 +49,8 @@
         }
       ],
       "./plugins/withKotlinJvmTargetFix.js",
-      "./plugins/withDirectShareShortcut.js"
+      "./plugins/withDirectShareShortcut.js",
+      "expo-sharing"
     ]
   }
 }

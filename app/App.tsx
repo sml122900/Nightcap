@@ -15,12 +15,15 @@ import { TriageScreen } from './src/screens/TriageScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
 import { TrashScreen } from './src/screens/TrashScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { ShareCardScreen } from './src/screens/ShareCardScreen';
 
-type Screen = 'onboarding' | 'home' | 'triage' | 'library' | 'trash' | 'settings';
+type Screen = 'onboarding' | 'home' | 'triage' | 'library' | 'trash' | 'settings' | 'shareCard';
 
 function RootNavigator() {
   const db = useSQLiteContext();
   const [screen, setScreen] = useState<Screen | null>(null);
+  /** 공유 카드는 완료 요약과 보관함 두 곳에서 열려서, 닫을 때 온 곳으로 돌아가야 한다. */
+  const [shareCardFrom, setShareCardFrom] = useState<Screen>('home');
   const [shareToastNonce, setShareToastNonce] = useState(0);
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
 
@@ -42,6 +45,10 @@ function RootNavigator() {
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (screen === 'shareCard') {
+        setScreen(shareCardFrom);
+        return true;
+      }
       if (screen === 'trash') {
         setScreen('library');
         return true;
@@ -53,7 +60,12 @@ function RootNavigator() {
       return false;
     });
     return () => sub.remove();
-  }, [screen]);
+  }, [screen, shareCardFrom]);
+
+  const openShareCard = (from: Screen) => {
+    setShareCardFrom(from);
+    setScreen('shareCard');
+  };
 
   if (screen === null) {
     return <View style={styles.root} />;
@@ -61,8 +73,17 @@ function RootNavigator() {
   if (screen === 'onboarding') {
     return <OnboardingScreen onComplete={() => setScreen('home')} />;
   }
+  if (screen === 'shareCard') {
+    return <ShareCardScreen onBack={() => setScreen(shareCardFrom)} />;
+  }
   if (screen === 'library') {
-    return <LibraryScreen onBack={() => setScreen('home')} onOpenTrash={() => setScreen('trash')} />;
+    return (
+      <LibraryScreen
+        onBack={() => setScreen('home')}
+        onOpenTrash={() => setScreen('trash')}
+        onOpenShareCard={() => openShareCard('library')}
+      />
+    );
   }
   if (screen === 'trash') {
     return <TrashScreen onBack={() => setScreen('library')} />;
@@ -71,7 +92,13 @@ function RootNavigator() {
     return <SettingsScreen onBack={() => setScreen('home')} />;
   }
   if (screen === 'triage') {
-    return <TriageScreen onOpenLibrary={() => setScreen('library')} onExit={() => setScreen('home')} />;
+    return (
+      <TriageScreen
+        onOpenLibrary={() => setScreen('library')}
+        onExit={() => setScreen('home')}
+        onOpenShareCard={() => openShareCard('home')}
+      />
+    );
   }
   return (
     <HomeScreen

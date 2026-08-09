@@ -4,7 +4,14 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { tokens } from '../constants/tokens';
-import { applyVerdict, getTodayStack, getTodayStackCount, undoVerdict } from '../db/queries';
+import {
+  applyVerdict,
+  getRatedCount,
+  getTodayStack,
+  getTodayStackCount,
+  SHARE_CARD_MIN_ITEMS,
+  undoVerdict,
+} from '../db/queries';
 import { resetDemoData } from '../db/seed';
 import { enqueueWrite } from '../db/writeQueue';
 import {
@@ -50,9 +57,11 @@ interface TriageScreenProps {
   onOpenLibrary: () => void;
   /** top-bar "닫기" — exits back to the home screen; untriaged rows stay in the stack for next time */
   onExit: () => void;
+  /** 완료 요약에서 공유 카드로 (W3-3 D) */
+  onOpenShareCard: () => void;
 }
 
-export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
+export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageScreenProps) {
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [queue, setQueue] = useState<Capture[] | null>(null);
@@ -64,6 +73,7 @@ export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [accessStatus, setAccessStatus] = useState<MediaAccessStatus | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [ratedCount, setRatedCount] = useState(0);
   const deckRef = useRef<TriageDeckHandle>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shownDropToastRef = useRef(false);
@@ -298,6 +308,9 @@ export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
     if (!isDone || syncedRef.current) return;
     syncedRef.current = true;
     if (sessionIdRef.current !== null) endTriageSession(db, sessionIdRef.current, true);
+    getRatedCount(db)
+      .then(setRatedCount)
+      .catch((err) => console.warn('[triage] rated count failed', err));
     syncPendingAssetDeletes(db).catch((err) => console.warn('[triage] syncPendingAssetDeletes failed', err));
   }, [isDone, db]);
 
@@ -317,7 +330,13 @@ export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
 
   if (isDone) {
     return (
-      <DoneScreen session={session} topApp={topApp} onOpenLibrary={onOpenLibrary} onRestart={handleRestart} />
+      <DoneScreen
+        session={session}
+        topApp={topApp}
+        onOpenLibrary={onOpenLibrary}
+        onRestart={handleRestart}
+        onOpenShareCard={ratedCount >= SHARE_CARD_MIN_ITEMS ? onOpenShareCard : undefined}
+      />
     );
   }
 
