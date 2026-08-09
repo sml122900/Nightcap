@@ -6,7 +6,14 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { makeStyles } from '../theme/makeStyles';
 import { SystemBars } from '../theme/SystemBars';
 import { useTheme } from '../theme/ThemeProvider';
-import { setAutoScanRequested } from '../services/screenshotScan';
+import {
+  AutoScanState,
+  MediaAccess,
+  presentAccessPicker,
+  setAutoScanRequested,
+  syncAutoScanWithPermission,
+} from '../services/screenshotScan';
+import { LimitedAccessNotice } from '../components/common/LimitedAccessNotice';
 import { setOnboardingCompleted } from '../services/settings';
 
 const PAGE_COUNT = 3;
@@ -23,12 +30,24 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const insets = useSafeAreaInsets();
   const [page, setPage] = useState(0);
   const [autoScan, setAutoScan] = useState(false);
+  const [access, setAccess] = useState<MediaAccess>('none');
+
+  const applyState = (state: AutoScanState) => {
+    setAutoScan(state.enabled);
+    setAccess(state.access);
+  };
 
   const handleAutoScanToggle = async (value: boolean) => {
-    // Denying the permission has to turn the toggle back off — same rule as the settings screen.
-    // Either outcome continues to the next page; the scan just no-ops when it isn't allowed.
+    // 거부면 토글이 다시 꺼진다 — 설정 화면과 같은 규칙. 어느 결과든 다음 장으로 넘어갈 수 있고,
+    // 스캔은 허용되지 않았을 때 조용히 no-op한다.
     setAutoScan(value);
-    setAutoScan((await setAutoScanRequested(db, value)).enabled);
+    applyState(await setAutoScanRequested(db, value));
+  };
+
+  /** Android 15에서는 선택기를 취소하면 limited가 된다 — 여기서 곧장 다시 열 수 있어야 한다. */
+  const handleRequestFullAccess = async () => {
+    await presentAccessPicker();
+    applyState(await syncAutoScanWithPermission(db));
   };
 
   const handleFinish = async () => {
@@ -97,6 +116,11 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                 trackColor={{ false: theme.c.border, true: theme.c.accent }}
               />
             </View>
+            {/* Android 15에서는 선택기를 취소해도 limited가 부여된다. 토글은 켜진 채 두고
+                (실제로 권한이 있다) 무엇이 안 되는지만 알린다 — 온보딩을 막지는 않는다. */}
+            {access === 'limited' ? (
+              <LimitedAccessNotice onRequestFullAccess={handleRequestFullAccess} style={styles.accessNotice} />
+            ) : null}
           </>
         ) : null}
       </Animated.View>
@@ -257,6 +281,9 @@ const useStyles = makeStyles((t) => ({
   },
   rowText: {
     flex: 1,
+  },
+  accessNotice: {
+    width: '100%',
   },
   rowLabel: {
     fontSize: 15,
