@@ -33,10 +33,32 @@ export interface Colors {
   dangerMuted: string;
   defer: string;
   deferMuted: string;
+  /**
+   * Translucent verdict washes for the triage deck. Distinct from the `*Muted` chip fills, which
+   * are opaque: these lie ON the card and have to let the content read through at full opacity.
+   */
+  accentScrim: string;
+  dangerScrim: string;
+  deferScrim: string;
   /** Translucent fill for controls layered over imagery (chips, icon buttons). */
   control: string;
   overlay: string;
+  /**
+   * Fixed across every palette: these sit on the user's own screenshots, whose pixels are
+   * arbitrary. A theme-varying scrim would be legible in one mode and invisible in the other.
+   */
+  imageScrim: string;
+  imageScrimSoft: string;
+  onImage: string;
+  shadowColor: string;
 }
+
+const overImage = {
+  imageScrim: 'rgba(0,0,0,0.6)',
+  imageScrimSoft: 'rgba(0,0,0,0.4)',
+  onImage: 'rgba(255,255,255,0.35)',
+  shadowColor: '#000000',
+} as const;
 
 const dark: Colors = {
   bg: '#0B0D12',
@@ -53,8 +75,12 @@ const dark: Colors = {
   dangerMuted: '#3A1F1D',
   defer: '#5B8DEF',
   deferMuted: '#1E2740',
+  accentScrim: 'rgba(245,196,81,0.14)',
+  dangerScrim: 'rgba(229,84,75,0.12)',
+  deferScrim: 'rgba(91,141,239,0.12)',
   control: 'rgba(255,255,255,0.08)',
   overlay: 'rgba(0,0,0,0.72)',
+  ...overImage,
 };
 
 const light: Colors = {
@@ -73,8 +99,12 @@ const light: Colors = {
   dangerMuted: '#FBE7E5',
   defer: '#3B6FD4',
   deferMuted: '#E6EDFB',
+  accentScrim: 'rgba(201,148,0,0.14)',
+  dangerScrim: 'rgba(201,58,49,0.12)',
+  deferScrim: 'rgba(59,111,212,0.12)',
   control: 'rgba(0,0,0,0.05)',
   overlay: 'rgba(0,0,0,0.48)',
+  ...overImage,
 };
 
 /** Theme-independent. Content is the subject here; the UI recedes into near-black. */
@@ -126,14 +156,14 @@ const noShadow: Shadows = { card: {}, modal: {} };
 const lightShadow: Shadows = {
   card: {
     elevation: 1,
-    shadowColor: '#000000',
+    shadowColor: overImage.shadowColor,
     shadowOpacity: 0.06,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
   },
   modal: {
     elevation: 8,
-    shadowColor: '#000000',
+    shadowColor: overImage.shadowColor,
     shadowOpacity: 0.14,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },

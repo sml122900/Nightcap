@@ -3,7 +3,9 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { tokens } from '../constants/tokens';
+import { makeStyles } from '../theme/makeStyles';
+import { SystemBars } from '../theme/SystemBars';
+import { useTheme } from '../theme/ThemeProvider';
 import { requestMediaAccess } from '../services/screenshotScan';
 import { setAutoScanEnabled, setOnboardingCompleted } from '../services/settings';
 
@@ -15,6 +17,8 @@ interface OnboardingScreenProps {
 }
 
 export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
+  const styles = useStyles();
+  const theme = useTheme();
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [page, setPage] = useState(0);
@@ -33,6 +37,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <SystemBars />
       <View style={styles.dots}>
         {Array.from({ length: PAGE_COUNT }).map((_, i) => (
           <View key={i} style={[styles.dot, i === page && styles.dotActive]} />
@@ -88,7 +93,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               <Switch
                 value={autoScan}
                 onValueChange={handleAutoScanToggle}
-                trackColor={{ false: tokens.surface3, true: tokens.brand }}
+                trackColor={{ false: theme.c.border, true: theme.c.accent }}
               />
             </View>
           </>
@@ -110,10 +115,10 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   screen: {
     flex: 1,
-    backgroundColor: tokens.bg,
+    backgroundColor: t.c.bg,
   },
   dots: {
     flexDirection: 'row',
@@ -126,11 +131,11 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: tokens.surface3,
+    backgroundColor: t.c.border,
   },
   dotActive: {
     width: 18,
-    backgroundColor: tokens.brand,
+    backgroundColor: t.c.accent,
   },
   body: {
     flex: 1,
@@ -144,13 +149,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.3,
     lineHeight: 32,
-    color: tokens.text,
+    color: t.c.textPrimary,
     textAlign: 'center',
   },
   desc: {
     fontSize: 14.5,
     lineHeight: 21,
-    color: tokens.text2,
+    color: t.c.textSecondary,
     textAlign: 'center',
   },
   visualRow: {
@@ -162,8 +167,8 @@ const styles = StyleSheet.create({
   chatMock: {
     width: 88,
     height: 64,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface2,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
     opacity: 0.45,
@@ -171,35 +176,35 @@ const styles = StyleSheet.create({
   chatMockText: {
     fontSize: 12,
     fontWeight: '700',
-    color: tokens.text3,
+    color: t.c.textTertiary,
   },
   arrow: {
     fontSize: 18,
     fontWeight: '700',
-    color: tokens.text3,
+    color: t.c.textTertiary,
   },
   cardMock: {
     width: 88,
     height: 64,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface2,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.surfaceRaised,
     borderWidth: 1.5,
-    borderColor: tokens.brand,
+    borderColor: t.c.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardMockText: {
     fontSize: 13,
     fontWeight: '800',
-    color: tokens.brand,
+    color: t.c.accent,
   },
   shareSheetMock: {
     width: '100%',
     marginTop: 8,
-    borderRadius: tokens.radius,
-    backgroundColor: tokens.surface2,
+    borderRadius: t.radius.sheet,
+    backgroundColor: t.c.surfaceRaised,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     paddingVertical: 20,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -209,12 +214,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: tokens.surface3,
+    backgroundColor: t.c.border,
   },
   shareSheetLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: tokens.text2,
+    color: t.c.textSecondary,
   },
   shareIconRow: {
     flexDirection: 'row',
@@ -226,22 +231,22 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: tokens.surface3,
+    backgroundColor: t.c.border,
   },
   shareIconBrand: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: tokens.brandDim,
+    backgroundColor: t.c.accentMuted,
     borderWidth: 1.5,
-    borderColor: tokens.brand,
+    borderColor: t.c.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   shareIconBrandText: {
     fontSize: 15,
     fontWeight: '800',
-    color: tokens.brand,
+    color: t.c.accent,
   },
   row: {
     flexDirection: 'row',
@@ -255,13 +260,13 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: 15,
     fontWeight: '700',
-    color: tokens.text,
+    color: t.c.textPrimary,
     letterSpacing: -0.2,
   },
   rowDesc: {
     marginTop: 4,
     fontSize: 12.5,
-    color: tokens.text3,
+    color: t.c.textTertiary,
     lineHeight: 18,
   },
   footer: {
@@ -270,14 +275,14 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     paddingVertical: 16,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.brand,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.accent,
     alignItems: 'center',
   },
   primaryText: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0b0b0d',
+    color: t.c.onAccent,
     letterSpacing: -0.2,
   },
-});
+}));

@@ -9,7 +9,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { tokens } from '../../constants/tokens';
+import { makeStyles } from '../../theme/makeStyles';
 import {
   DEPTH_EASING,
   DEPTH_SCALE_STEP,
@@ -52,6 +52,7 @@ export function TriageCard({
   onTitleChange,
   onDragActiveChange,
 }: TriageCardProps) {
+  const styles = useStyles('cinema');
   const isTop = depth === 0;
   const dragX = useSharedValue(0);
   const dragY = useSharedValue(0);
@@ -179,23 +180,25 @@ export function TriageCard({
   return <GestureDetector gesture={pan}>{card}</GestureDetector>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   card: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: tokens.radius,
-    backgroundColor: tokens.surface,
+    borderRadius: t.radius.sheet,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     overflow: 'hidden',
     flexDirection: 'column',
-    shadowColor: '#000',
+    // Kept despite the "no shadow on dark" rule: this one isn't depth decoration, it's what
+    // separates the stacked cards from each other and from the deck background.
+    shadowColor: t.c.shadowColor,
     shadowOpacity: 0.55,
     shadowRadius: 60,
     shadowOffset: { width: 0, height: 24 },
     elevation: 12,
   },
-});
+}));

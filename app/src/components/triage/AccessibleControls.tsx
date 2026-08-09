@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { tokens } from '../../constants/tokens';
+import { makeStyles } from '../../theme/makeStyles';
 
 interface AccessibleControlsProps {
   onHold: () => void;
@@ -12,6 +12,7 @@ interface AccessibleControlsProps {
 
 /** Swipe alternative for VoiceOver/TalkBack (PROJECT.md §6). Doubles as the on-screen gesture hint. */
 export function AccessibleControls({ onHold, onDrop, onRate, onPrev, disabled }: AccessibleControlsProps) {
+  const styles = useStyles('cinema');
   const items: { key: string; label: string; onPress: () => void }[] = [
     { key: '←', label: '보류', onPress: onHold },
     { key: '↓', label: '삭제', onPress: onDrop },
@@ -41,15 +42,17 @@ export function AccessibleControls({ onHold, onDrop, onRate, onPrev, disabled }:
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   row: {
     flexDirection: 'row',
-    gap: 16,
+    gap: t.space.lg,
   },
   hint: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    // Badge + label are only 22pt tall; these are real controls for TalkBack users (핸드오프 §5-6).
+    minHeight: 44,
   },
   pressed: {
     opacity: 0.6,
@@ -59,18 +62,18 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   keyText: {
     fontSize: 12,
-    color: tokens.text2,
+    color: t.c.textSecondary,
   },
   label: {
     fontSize: 12,
     fontWeight: '600',
-    color: tokens.text3,
+    color: t.c.textTertiary,
     letterSpacing: -0.1,
   },
-});
+}));

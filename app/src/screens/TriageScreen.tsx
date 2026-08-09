@@ -3,7 +3,9 @@ import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from '
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { tokens } from '../constants/tokens';
+import { makeStyles } from '../theme/makeStyles';
+import { SystemBars } from '../theme/SystemBars';
+import { useCinema } from '../theme/ThemeProvider';
 import {
   applyVerdict,
   getRatedCount,
@@ -62,6 +64,10 @@ interface TriageScreenProps {
 }
 
 export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageScreenProps) {
+  // The whole deck screen is a cinema surface — content is the subject here, so it stays dark
+  // even when the app theme is light (핸드오프 §1-1, §4).
+  const styles = useStyles('cinema');
+  const theme = useCinema();
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [queue, setQueue] = useState<Capture[] | null>(null);
@@ -342,6 +348,7 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <SystemBars surface="cinema" />
       <View style={styles.top}>
         <Pressable onPress={onExit} hitSlop={8}>
           <Text style={styles.ghostBtn}>닫기</Text>
@@ -349,7 +356,11 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
         <Text style={styles.count}>
           <Text style={styles.countStrong}>{current}</Text> / {total}
         </Text>
-        {scanning ? <ActivityIndicator size="small" color={tokens.text2} /> : <View style={{ width: 34 }} />}
+        {scanning ? (
+          <ActivityIndicator size="small" color={theme.c.textSecondary} />
+        ) : (
+          <View style={{ width: 34 }} />
+        )}
       </View>
 
       <View style={styles.progressTrack}>
@@ -393,10 +404,10 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   screen: {
     flex: 1,
-    backgroundColor: tokens.bg,
+    backgroundColor: t.c.bg,
   },
   top: {
     paddingHorizontal: 24,
@@ -407,28 +418,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   ghostBtn: {
-    color: tokens.text2,
+    color: t.c.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
   count: {
     fontSize: 14,
     fontWeight: '700',
-    color: tokens.text2,
+    color: t.c.textSecondary,
   },
   countStrong: {
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   progressTrack: {
     height: 3,
     marginHorizontal: 24,
     borderRadius: 2,
-    backgroundColor: tokens.surface2,
+    backgroundColor: t.c.surfaceRaised,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: tokens.brand,
+    backgroundColor: t.c.accent,
     borderRadius: 2,
   },
   deckWrap: {
@@ -451,16 +462,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toast: {
-    backgroundColor: tokens.surface3,
+    backgroundColor: t.c.border,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     borderRadius: 14,
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
   toastText: {
-    color: tokens.text,
+    color: t.c.textPrimary,
     fontSize: 13.5,
     fontWeight: '700',
   },
-});
+}));

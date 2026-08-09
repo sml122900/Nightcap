@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { tokens } from '../../constants/tokens';
+import { makeStyles } from '../../theme/makeStyles';
 
 interface PartialAccessBannerProps {
   onRequestFullAccess: () => void;
@@ -8,6 +8,7 @@ interface PartialAccessBannerProps {
 
 /** Android 14+ "일부만 허용" state — nudges the user toward full access (PROJECT.md W3-1 §1). */
 export function PartialAccessBanner({ onRequestFullAccess }: PartialAccessBannerProps) {
+  const styles = useStyles('cinema');
   return (
     <View style={styles.banner}>
       <Text style={styles.text} numberOfLines={2}>
@@ -25,7 +26,7 @@ export function PartialAccessBanner({ onRequestFullAccess }: PartialAccessBanner
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -35,26 +36,27 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface2,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.surfaceRaised,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
   },
   text: {
     flex: 1,
     fontSize: 12,
     fontWeight: '600',
-    color: tokens.text2,
+    color: t.c.textSecondary,
   },
   button: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: t.space.md,
+    minHeight: 44,
+    justifyContent: 'center',
     borderRadius: 10,
-    backgroundColor: tokens.brandDim,
+    backgroundColor: t.c.accentMuted,
   },
   buttonText: {
     fontSize: 12,
     fontWeight: '800',
-    color: tokens.brand,
+    color: t.c.accent,
   },
-});
+}));

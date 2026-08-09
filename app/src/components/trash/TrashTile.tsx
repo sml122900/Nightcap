@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { tokens } from '../../constants/tokens';
+import { makeStyles } from '../../theme/makeStyles';
+import { useTheme } from '../../theme/ThemeProvider';
 import { Capture } from '../../types/capture';
 import { CoverImage } from '../common/CoverImage';
 
@@ -13,13 +14,15 @@ interface TrashTileProps {
 }
 
 export function TrashTile({ item, onRestore }: TrashTileProps) {
+  const styles = useStyles();
+  const theme = useTheme();
   const daysLeft = Math.max(0, Math.ceil((item.deletedAt + TRASH_WINDOW_MS - Date.now()) / DAY_MS));
 
   return (
     <View style={styles.tile}>
       <View style={styles.thumb}>
         {item.kind !== 'drm' && item.imageUri ? (
-          <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} />
+          <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} backgroundColor={theme.c.surfaceRaised} />
         ) : null}
         {item.kind === 'drm' ? (
           <Text style={styles.drmLabel} numberOfLines={1}>
@@ -50,38 +53,39 @@ export function TrashTile({ item, onRestore }: TrashTileProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   tile: {
     flex: 1,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.border,
+    borderColor: t.c.border,
     overflow: 'hidden',
+    ...t.shadow.card,
   },
   thumb: {
     height: 120,
-    backgroundColor: tokens.surface2,
-    padding: 10,
+    backgroundColor: t.c.surfaceRaised,
+    padding: t.space.sm + 2,
     justifyContent: 'flex-end',
   },
   drmLabel: {
     margin: 'auto',
     fontSize: 12,
     fontWeight: '800',
-    color: tokens.text,
+    color: t.c.textPrimary,
     textAlign: 'center',
   },
   skLine: {
     height: 7,
     borderRadius: 4,
-    backgroundColor: tokens.surface3,
+    backgroundColor: t.c.border,
     marginTop: 6,
   },
   w80: { width: '80%', marginTop: 0 },
   w60: { width: '60%' },
   meta: {
-    padding: 10,
+    padding: t.space.sm + 2,
     gap: 6,
   },
   title: {
@@ -89,24 +93,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.2,
     lineHeight: 16,
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
+  // `danger` marks the countdown only — the tile itself stays neutral (핸드오프 §4).
   countdown: {
-    fontSize: 10.5,
-    fontWeight: '600',
-    color: tokens.danger,
+    ...t.type.caption,
+    color: t.c.danger,
   },
   restoreBtn: {
     marginTop: 2,
-    paddingVertical: 7,
+    // 44pt minimum touch target (핸드오프 §5-6) — was 7pt padding on an 11pt line.
+    minHeight: 44,
+    justifyContent: 'center',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     alignItems: 'center',
   },
   restoreText: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: tokens.text2,
+    color: t.c.textSecondary,
   },
-});
+}));

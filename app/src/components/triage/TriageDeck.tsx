@@ -1,6 +1,6 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { tokens } from '../../constants/tokens';
+import { makeStyles } from '../../theme/makeStyles';
 import { DECK_VISIBLE_DEPTH, RATE_DEFAULT_VALUE } from '../../constants/swipeEngine';
 import { Capture, GestureAction, Verdict } from '../../types/capture';
 import { fireEnterRateHaptic } from '../../utils/haptics';
@@ -51,6 +51,7 @@ export const TriageDeck = forwardRef<TriageDeckHandle, TriageDeckProps>(function
   { queue, onCommit, onPrev, onRatingActiveChange, onDragActiveChange, onTitleChange },
   ref
 ) {
+  const styles = useStyles('cinema');
   const [exiting, setExiting] = useState<ExitEntry[]>([]);
   const [rating, setRating] = useState<RatingState | null>(null);
   const exitCounter = useRef(0);
@@ -169,7 +170,7 @@ export const TriageDeck = forwardRef<TriageDeckHandle, TriageDeckProps>(function
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   deck: {
     flex: 1,
     position: 'relative',
@@ -183,9 +184,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Empty states are one `textSecondary` line, no icon, across all three screens (핸드오프 §5-7).
   emptyText: {
-    color: tokens.text3,
-    fontSize: 14,
-    fontWeight: '600',
+    ...t.type.body,
+    color: t.c.textSecondary,
+    textAlign: 'center',
   },
-});
+}));

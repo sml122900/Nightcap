@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { tokens } from '../constants/tokens';
+import { makeStyles } from '../theme/makeStyles';
+import { SystemBars } from '../theme/SystemBars';
 import { TriageSession } from '../types/capture';
 
 interface DoneScreenProps {
@@ -15,11 +16,13 @@ interface DoneScreenProps {
 
 /** Wrapped-style takeover (PROJECT.md §4) — replaces the whole triage screen body when the stack empties. */
 export function DoneScreen({ session, topApp, onOpenLibrary, onRestart, onOpenShareCard }: DoneScreenProps) {
+  const styles = useStyles();
   const avg = session.rated ? session.sum / session.rated : 0;
   const insets = useSafeAreaInsets();
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <SystemBars />
       <View style={styles.body}>
         <Text style={styles.eyebrow}>오늘의 정리</Text>
 
@@ -55,6 +58,7 @@ export function DoneScreen({ session, topApp, onOpenLibrary, onRestart, onOpenSh
 }
 
 function Row({ label, value, dim }: { label: string; value: string; dim?: boolean }) {
+  const styles = useStyles();
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -63,10 +67,10 @@ function Row({ label, value, dim }: { label: string; value: string; dim?: boolea
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   screen: {
     flex: 1,
-    backgroundColor: tokens.bg,
+    backgroundColor: t.c.bg,
   },
   body: {
     flex: 1,
@@ -74,17 +78,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 26,
   },
   eyebrow: {
-    fontSize: 13,
+    ...t.type.meta,
     fontWeight: '800',
-    color: tokens.text3,
+    color: t.c.textTertiary,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   hero: {
-    marginTop: 32,
-    backgroundColor: tokens.brand,
+    marginTop: t.space.xxl,
+    backgroundColor: t.c.accent,
     borderRadius: 18,
-    paddingHorizontal: 20,
+    paddingHorizontal: t.space.xl - 4,
     paddingVertical: 18,
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -93,18 +97,18 @@ const styles = StyleSheet.create({
   heroLabel: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#1a1200',
+    color: t.c.onAccent,
     letterSpacing: -0.3,
   },
   heroValue: {
     fontSize: 40,
     fontWeight: '800',
-    color: '#1a1200',
+    color: t.c.onAccent,
     letterSpacing: -0.6,
     fontVariant: ['tabular-nums'],
   },
   rows: {
-    marginTop: 8,
+    marginTop: t.space.sm,
   },
   row: {
     flexDirection: 'row',
@@ -112,70 +116,71 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: tokens.border,
+    borderBottomColor: t.c.border,
   },
   rowLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: tokens.text2,
+    color: t.c.textSecondary,
     letterSpacing: -0.1,
   },
   rowValue: {
-    fontSize: 22,
+    ...t.type.title,
     fontWeight: '800',
-    color: tokens.text,
     letterSpacing: -0.4,
+    color: t.c.textPrimary,
     fontVariant: ['tabular-nums'],
   },
   rowValueDim: {
-    color: tokens.text3,
+    color: t.c.textTertiary,
   },
   note: {
     marginTop: 22,
     fontSize: 14,
-    color: tokens.text2,
+    color: t.c.textSecondary,
     lineHeight: 22,
     letterSpacing: -0.1,
   },
   actions: {
-    paddingHorizontal: 24,
+    paddingHorizontal: t.space.xl,
     gap: 10,
   },
   shareBtn: {
     paddingVertical: 17,
-    borderRadius: 16,
-    backgroundColor: tokens.brand,
+    borderRadius: t.radius.sheet - 4,
+    backgroundColor: t.c.accent,
     alignItems: 'center',
   },
   shareText: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0b0b0d',
+    color: t.c.onAccent,
     letterSpacing: -0.2,
   },
+  // Inverted button: `textPrimary` as the fill, so its label has to be the page background.
   primaryBtn: {
     paddingVertical: 17,
-    borderRadius: 16,
-    backgroundColor: tokens.text,
+    borderRadius: t.radius.sheet - 4,
+    backgroundColor: t.c.textPrimary,
     alignItems: 'center',
   },
   primaryText: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0b0b0d',
+    color: t.c.bg,
     letterSpacing: -0.2,
   },
   secondaryBtn: {
     paddingVertical: 15,
-    borderRadius: 16,
-    backgroundColor: tokens.surface2,
+    borderRadius: t.radius.sheet - 4,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     alignItems: 'center',
   },
   secondaryText: {
     fontSize: 14,
     fontWeight: '700',
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
-});
+}));

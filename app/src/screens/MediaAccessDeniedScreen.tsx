@@ -1,12 +1,15 @@
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { tokens } from '../constants/tokens';
+import { makeStyles } from '../theme/makeStyles';
+import { SystemBars } from '../theme/SystemBars';
 
 /** Shown instead of the triage deck when MediaLibrary permission is denied (PROJECT.md W3-1 §1). */
 export function MediaAccessDeniedScreen() {
+  const styles = useStyles();
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <SystemBars />
       <View style={styles.body}>
         <Text style={styles.title}>사진 접근 권한이 필요해요</Text>
         <Text style={styles.desc}>
@@ -26,41 +29,41 @@ export function MediaAccessDeniedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   screen: {
     flex: 1,
-    backgroundColor: tokens.bg,
+    backgroundColor: t.c.bg,
   },
   body: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: t.space.xxl,
     gap: 14,
   },
   title: {
     fontSize: 19,
     fontWeight: '800',
     letterSpacing: -0.3,
-    color: tokens.text,
+    color: t.c.textPrimary,
     textAlign: 'center',
   },
   desc: {
     fontSize: 14,
     lineHeight: 21,
-    color: tokens.text2,
+    color: t.c.textSecondary,
     textAlign: 'center',
   },
   button: {
     marginTop: 10,
     paddingHorizontal: 22,
     paddingVertical: 14,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.brand,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.accent,
   },
   buttonText: {
     fontSize: 14.5,
     fontWeight: '800',
-    color: '#0b0b0d',
+    color: t.c.onAccent,
   },
-});
+}));

@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { tokens } from '../constants/tokens';
+import { makeStyles } from '../theme/makeStyles';
+import { SystemBars } from '../theme/SystemBars';
 import { getTodayStackCount } from '../db/queries';
 
 const TOAST_DURATION = 1800;
@@ -21,6 +22,7 @@ interface HomeScreenProps {
  * here with a toast, not drop the user straight into triage (docs/decisions/share-intent-primary-ingestion.md).
  */
 export function HomeScreen({ onStartTriage, onOpenLibrary, onOpenSettings, shareToastNonce }: HomeScreenProps) {
+  const styles = useStyles();
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [count, setCount] = useState<number | null>(null);
@@ -51,6 +53,7 @@ export function HomeScreen({ onStartTriage, onOpenLibrary, onOpenSettings, share
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <SystemBars />
       <View style={styles.top}>
         <View style={{ width: 34 }} />
         <Text style={styles.brand}>nightcap</Text>
@@ -92,15 +95,15 @@ export function HomeScreen({ onStartTriage, onOpenLibrary, onOpenSettings, share
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   screen: {
     flex: 1,
-    backgroundColor: tokens.bg,
+    backgroundColor: t.c.bg,
   },
   top: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: t.space.xl,
+    paddingTop: t.space.md,
+    paddingBottom: t.space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -109,10 +112,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     letterSpacing: -0.2,
-    color: tokens.text2,
+    color: t.c.textSecondary,
   },
   ghostBtn: {
-    color: tokens.text2,
+    color: t.c.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -120,51 +123,52 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: t.space.xxl,
   },
   countLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: tokens.text2,
+    color: t.c.textSecondary,
   },
   countValue: {
     marginTop: 10,
     fontSize: 56,
     fontWeight: '800',
-    color: tokens.text,
+    color: t.c.textPrimary,
     letterSpacing: -1,
     fontVariant: ['tabular-nums'],
   },
   primaryBtn: {
     marginTop: 28,
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: tokens.brand,
+    paddingHorizontal: t.space.xxl,
+    paddingVertical: t.space.lg,
+    borderRadius: t.radius.sheet - 4,
+    backgroundColor: t.c.accent,
   },
   primaryText: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0b0b0d',
+    color: t.c.onAccent,
     letterSpacing: -0.2,
   },
   emptyText: {
-    color: tokens.text3,
-    fontSize: 14,
+    ...t.type.body,
+    color: t.c.textSecondary,
     lineHeight: 22,
     textAlign: 'center',
   },
   libraryEntry: {
-    marginHorizontal: 24,
+    marginHorizontal: t.space.xl,
     paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: tokens.surface2,
+    borderRadius: t.radius.sheet - 4,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     alignItems: 'center',
+    ...t.shadow.card,
   },
   libraryEntryText: {
-    color: tokens.text,
+    color: t.c.textPrimary,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -175,16 +179,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toast: {
-    backgroundColor: tokens.surface3,
+    backgroundColor: t.c.surfaceRaised,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     borderRadius: 14,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: t.space.xl - 4,
+    paddingVertical: t.space.md,
+    ...t.shadow.modal,
   },
   toastText: {
-    color: tokens.text,
+    color: t.c.textPrimary,
     fontSize: 13.5,
     fontWeight: '700',
   },
-});
+}));

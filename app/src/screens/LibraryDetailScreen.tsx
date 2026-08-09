@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { tokens } from '../constants/tokens';
+import { makeStyles } from '../theme/makeStyles';
+import { SystemBars } from '../theme/SystemBars';
+import { useTheme } from '../theme/ThemeProvider';
 import { applyVerdict } from '../db/queries';
 import { enqueueWrite } from '../db/writeQueue';
 import { unlinkCapture } from '../services/clipboardLink';
@@ -16,6 +18,11 @@ interface LibraryDetailScreenProps {
 
 /** 보관함 타일 탭 → 상세: 원본 이미지 + 별점/제목 수정 + 삭제(휴지통행). */
 export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) {
+  const styles = useStyles();
+  // The image block is a cinema surface even in light mode — a bright letterbox around a
+  // screenshot fights the content (핸드오프 §1-1). Everything below it follows the theme.
+  const media = useMediaStyles('cinema');
+  const theme = useTheme();
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [stars, setStars] = useState(item.stars);
@@ -55,6 +62,7 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <SystemBars />
       <View style={styles.top}>
         <Pressable onPress={onBack} hitSlop={8}>
           <Text style={styles.ghostBtn}>닫기</Text>
@@ -68,19 +76,19 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
           <Image
             source={{ uri: item.imageUri }}
             resizeMode="contain"
-            style={aspectRatio ? [styles.image, { aspectRatio }] : styles.imageFallback}
+            style={aspectRatio ? [media.image, { aspectRatio }] : media.imageFallback}
             onLoad={(e) => {
               const { width, height } = e.nativeEvent.source;
               if (width && height) setAspectRatio(width / height);
             }}
           />
         ) : (
-          <View style={styles.noImage}>
-            <Text style={styles.noImageTitle} numberOfLines={4}>
+          <View style={media.noImage}>
+            <Text style={media.noImageTitle} numberOfLines={4}>
               {title || '제목 없음'}
             </Text>
             {item.kind === 'drm' ? (
-              <Text style={styles.drmNote}>화면 캡처 제한 콘텐츠 · 작품 정보로 저장됨</Text>
+              <Text style={media.drmNote}>화면 캡처 제한 콘텐츠 · 작품 정보로 저장됨</Text>
             ) : null}
           </View>
         )}
@@ -91,7 +99,7 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
             value={title}
             onChangeText={handleTitleChange}
             placeholder="제목을 입력하세요"
-            placeholderTextColor={tokens.text3}
+            placeholderTextColor={theme.c.textTertiary}
             multiline
           />
           <Text style={styles.src} numberOfLines={1}>
@@ -149,139 +157,147 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   screen: {
     flex: 1,
-    backgroundColor: tokens.bg,
+    backgroundColor: t.c.bg,
   },
   top: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: t.space.xl,
+    paddingTop: t.space.md,
+    paddingBottom: t.space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   ghostBtn: {
-    color: tokens.text2,
+    color: t.c.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
   headerTitle: {
-    fontSize: 17,
+    ...t.type.heading,
     fontWeight: '700',
     letterSpacing: -0.3,
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   body: {
-    paddingHorizontal: 24,
-  },
-  image: {
-    width: '100%',
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface2,
-  },
-  imageFallback: {
-    width: '100%',
-    height: 320,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface2,
-  },
-  noImage: {
-    minHeight: 220,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface2,
-    borderWidth: 1,
-    borderColor: tokens.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingHorizontal: 24,
-  },
-  noImageTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-    color: tokens.text,
-    textAlign: 'center',
-  },
-  drmNote: {
-    fontSize: 12,
-    color: tokens.text3,
+    paddingHorizontal: t.space.xl,
   },
   meta: {
-    marginTop: 20,
+    marginTop: t.space.xl - 4,
   },
   title: {
     fontSize: 19,
     fontWeight: '700',
     letterSpacing: -0.3,
     lineHeight: 26,
-    color: tokens.text,
+    color: t.c.textPrimary,
     padding: 0,
   },
   src: {
     marginTop: 6,
-    fontSize: 13,
-    color: tokens.text3,
+    ...t.type.meta,
+    color: t.c.textTertiary,
   },
   starRow: {
-    marginTop: 20,
+    marginTop: t.space.xl - 4,
     paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface,
+    paddingHorizontal: t.space.lg,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    ...t.shadow.card,
   },
   starValue: {
     fontSize: 18,
     fontWeight: '800',
-    color: tokens.brand,
+    color: t.c.accent,
     fontVariant: ['tabular-nums'],
   },
   starEdit: {
-    fontSize: 13,
+    ...t.type.meta,
     fontWeight: '700',
-    color: tokens.text2,
+    color: t.c.textSecondary,
   },
   openOriginalBtn: {
     marginTop: 10,
     paddingVertical: 14,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     alignItems: 'center',
+    ...t.shadow.card,
   },
   openOriginalText: {
     fontSize: 14,
     fontWeight: '700',
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   unlinkBtn: {
-    marginTop: 8,
-    paddingVertical: 12,
+    marginTop: t.space.sm,
+    // Text-only control with no fill — without a floor it was a 12pt tap target (핸드오프 §5-6).
+    minHeight: 44,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   unlinkText: {
-    fontSize: 13,
+    ...t.type.meta,
     fontWeight: '700',
-    color: tokens.text3,
+    color: t.c.textTertiary,
   },
   deleteBtn: {
     marginTop: 28,
     paddingVertical: 15,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.dangerDim,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.dangerMuted,
     alignItems: 'center',
   },
   deleteText: {
     fontSize: 14.5,
     fontWeight: '800',
-    color: tokens.danger,
+    color: t.c.danger,
   },
-});
+}));
+
+/** Cinema-pinned: the letterbox behind a screenshot stays near-black in both themes. */
+const useMediaStyles = makeStyles((t) => ({
+  image: {
+    width: '100%',
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.bg,
+  },
+  imageFallback: {
+    width: '100%',
+    height: 320,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.bg,
+  },
+  noImage: {
+    minHeight: 220,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.surface,
+    borderWidth: 1,
+    borderColor: t.c.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: t.space.xl,
+  },
+  noImageTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    color: t.c.textPrimary,
+    textAlign: 'center',
+  },
+  drmNote: {
+    fontSize: 12,
+    color: t.c.textTertiary,
+  },
+}));

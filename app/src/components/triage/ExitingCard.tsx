@@ -6,7 +6,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { tokens } from '../../constants/tokens';
+import { makeStyles } from '../../theme/makeStyles';
 import { EXIT_DURATION, EXIT_EASING, EXIT_TARGETS, ROT } from '../../constants/swipeEngine';
 import { Capture } from '../../types/capture';
 import { CardContent } from './CardContent';
@@ -35,6 +35,7 @@ interface ExitingCardProps {
  * (docs/decisions/rate-mode-modal-not-docking.md), matching nightcap-prototype.html's resolveCard('rate', v).
  */
 export function ExitingCard({ item, kind, fromX, fromY, onDone }: ExitingCardProps) {
+  const styles = useStyles('cinema');
   const isRate = kind === 'rate';
   const x = useSharedValue(fromX);
   const y = useSharedValue(fromY);
@@ -69,19 +70,19 @@ export function ExitingCard({ item, kind, fromX, fromY, onDone }: ExitingCardPro
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   card: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: tokens.radius,
-    backgroundColor: tokens.surface,
+    borderRadius: t.radius.sheet,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     overflow: 'hidden',
     flexDirection: 'column',
     zIndex: 20,
   },
-});
+}));

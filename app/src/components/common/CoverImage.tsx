@@ -4,6 +4,13 @@ import { Image, ImageStyle, LayoutChangeEvent, StyleProp, StyleSheet, View, View
 interface CoverImageProps {
   uri: string;
   style?: StyleProp<ViewStyle>;
+  /**
+   * Fill behind the image. The crop never leaves a gap once both aspect ratios are known, but it
+   * does for the frame or two before `onLoad`, and this component is shared by four screens whose
+   * surfaces differ (`surface` in the library/trash grids, `cinemaBg` in the deck) — so the parent
+   * injects it rather than the component guessing (핸드오프 §5-3).
+   */
+  backgroundColor: string;
 }
 
 /**
@@ -17,7 +24,7 @@ interface CoverImageProps {
  * component correctly handles both screenshot tiles and link thumbnails. Before the first
  * load/layout, falls back to a normal centered cover fill so there's no blank flash.
  */
-export function CoverImage({ uri, style }: CoverImageProps) {
+export function CoverImage({ uri, style, backgroundColor }: CoverImageProps) {
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
   const [containerAspectRatio, setContainerAspectRatio] = useState<number | null>(null);
 
@@ -38,7 +45,7 @@ export function CoverImage({ uri, style }: CoverImageProps) {
   }
 
   return (
-    <View style={[styles.container, style]} onLayout={handleLayout}>
+    <View style={[styles.container, { backgroundColor }, style]} onLayout={handleLayout}>
       <Image
         source={{ uri }}
         resizeMode="cover"

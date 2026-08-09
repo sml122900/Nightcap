@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { tokens } from '../constants/tokens';
+import { makeStyles } from '../theme/makeStyles';
+import { SystemBars } from '../theme/SystemBars';
 import { getTrash, restoreFromTrash } from '../db/queries';
 import { TrashTile } from '../components/trash/TrashTile';
 import { Capture } from '../types/capture';
@@ -12,6 +13,7 @@ interface TrashScreenProps {
 }
 
 export function TrashScreen({ onBack }: TrashScreenProps) {
+  const styles = useStyles();
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<(Capture & { deletedAt: number })[]>([]);
@@ -31,6 +33,7 @@ export function TrashScreen({ onBack }: TrashScreenProps) {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <SystemBars />
       <View style={styles.top}>
         <Pressable onPress={onBack} hitSlop={8}>
           <Text style={styles.ghostBtn}>닫기</Text>
@@ -57,45 +60,46 @@ export function TrashScreen({ onBack }: TrashScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   screen: {
     flex: 1,
-    backgroundColor: tokens.bg,
+    backgroundColor: t.c.bg,
   },
   top: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: t.space.xl,
+    paddingTop: t.space.md,
+    paddingBottom: t.space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   ghostBtn: {
-    color: tokens.text2,
+    color: t.c.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
   title: {
-    fontSize: 17,
+    ...t.type.heading,
     fontWeight: '700',
     letterSpacing: -0.3,
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   grid: {
-    paddingHorizontal: 24,
-    gap: 12,
+    paddingHorizontal: t.space.xl,
+    gap: t.space.md,
   },
   row: {
-    gap: 12,
+    gap: t.space.md,
   },
   empty: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: t.space.xxxl,
   },
   emptyText: {
-    color: tokens.text3,
-    fontSize: 14,
-    fontWeight: '600',
+    ...t.type.body,
+    color: t.c.textSecondary,
+    textAlign: 'center',
   },
-});
+}));

@@ -2,12 +2,21 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { tokens } from '../constants/tokens';
+import { makeStyles } from '../theme/makeStyles';
+import { SystemBars } from '../theme/SystemBars';
+import { useTheme, useThemeMode } from '../theme/ThemeProvider';
+import type { ThemeMode } from '../theme/tokens';
 import { getMetricsSummary, MetricsSummary } from '../services/metrics';
 import { getAutoScanEnabled, setAutoScanEnabled } from '../services/settings';
 
 /** Taps on the version label needed to reveal the dogfooding numbers in a release build. */
 const REVEAL_TAPS = 5;
+
+const THEME_OPTIONS: { key: ThemeMode; label: string }[] = [
+  { key: 'dark', label: '어둡게' },
+  { key: 'light', label: '밝게' },
+  { key: 'system', label: '시스템' },
+];
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -24,6 +33,9 @@ function duration(ms: number | null): string {
 }
 
 export function SettingsScreen({ onBack }: SettingsScreenProps) {
+  const styles = useStyles();
+  const theme = useTheme();
+  const { mode, setMode } = useThemeMode();
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [autoScan, setAutoScan] = useState(false);
@@ -57,6 +69,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <SystemBars />
       <View style={styles.top}>
         <Pressable onPress={onBack} hitSlop={8}>
           <Text style={styles.ghostBtn}>닫기</Text>
@@ -74,8 +87,28 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
           <Switch
             value={autoScan}
             onValueChange={handleToggle}
-            trackColor={{ false: tokens.surface3, true: tokens.brand }}
+            trackColor={{ false: theme.c.border, true: theme.c.accent }}
           />
+        </View>
+
+        <View style={styles.themeRow}>
+          <Text style={styles.rowLabel}>화면 테마</Text>
+          <View style={styles.segment}>
+            {THEME_OPTIONS.map((option) => (
+              <Pressable
+                key={option.key}
+                onPress={() => setMode(option.key)}
+                style={[styles.segmentItem, mode === option.key && styles.segmentItemOn]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: mode === option.key }}
+                accessibilityLabel={option.label}
+              >
+                <Text style={[styles.segmentText, mode === option.key && styles.segmentTextOn]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <Pressable onPress={handleVersionTap} style={styles.version} accessibilityRole="button">
@@ -117,6 +150,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.statRow}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -125,10 +159,10 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   screen: {
     flex: 1,
-    backgroundColor: tokens.bg,
+    backgroundColor: t.c.bg,
   },
   top: {
     paddingHorizontal: 24,
@@ -139,7 +173,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   ghostBtn: {
-    color: tokens.text2,
+    color: t.c.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -147,7 +181,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: -0.3,
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   body: {
     paddingHorizontal: 24,
@@ -159,7 +193,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: tokens.border,
+    borderBottomColor: t.c.border,
   },
   rowText: {
     flex: 1,
@@ -167,14 +201,46 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: 15,
     fontWeight: '700',
-    color: tokens.text,
+    color: t.c.textPrimary,
     letterSpacing: -0.2,
   },
   rowDesc: {
     marginTop: 4,
     fontSize: 12.5,
-    color: tokens.text3,
+    color: t.c.textTertiary,
     lineHeight: 18,
+  },
+  themeRow: {
+    paddingVertical: t.space.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: t.c.border,
+    gap: t.space.md,
+  },
+  segment: {
+    flexDirection: 'row',
+    gap: t.space.sm,
+  },
+  segmentItem: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: t.radius.chip,
+    borderWidth: 1,
+    borderColor: t.c.border,
+    backgroundColor: t.c.surface,
+  },
+  segmentItemOn: {
+    backgroundColor: t.c.accentMuted,
+    borderColor: t.c.accent,
+  },
+  segmentText: {
+    ...t.type.meta,
+    fontWeight: '700',
+    color: t.c.textSecondary,
+  },
+  segmentTextOn: {
+    color: t.c.accent,
   },
   version: {
     marginTop: 28,
@@ -183,27 +249,27 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 12,
-    color: tokens.text3,
+    color: t.c.textTertiary,
   },
   devSection: {
     marginTop: 12,
     padding: 16,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.border,
+    borderColor: t.c.border,
   },
   devTitle: {
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
-    color: tokens.text3,
+    color: t.c.textTertiary,
   },
   devEmpty: {
     marginTop: 12,
     fontSize: 13,
-    color: tokens.text3,
+    color: t.c.textTertiary,
   },
   statRow: {
     marginTop: 12,
@@ -214,14 +280,14 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 13,
-    color: tokens.text2,
+    color: t.c.textSecondary,
   },
   statValue: {
     flexShrink: 1,
     fontSize: 13,
     fontWeight: '700',
-    color: tokens.text,
+    color: t.c.textPrimary,
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
   },
-});
+}));

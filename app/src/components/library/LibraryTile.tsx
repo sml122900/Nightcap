@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { tokens } from '../../constants/tokens';
+import { makeStyles } from '../../theme/makeStyles';
+import { useTheme } from '../../theme/ThemeProvider';
 import { Capture } from '../../types/capture';
 import { CoverImage } from '../common/CoverImage';
 
@@ -14,11 +15,14 @@ interface LibraryTileProps {
  * Mock-seeded content has no real image so it falls back to skeleton placeholders.
  */
 export function LibraryTile({ item, onPress }: LibraryTileProps) {
+  const styles = useStyles();
+  const badge = useBadgeStyles('cinema');
+  const theme = useTheme();
   return (
     <Pressable onPress={onPress} style={styles.tile}>
       <View style={styles.thumb}>
         {item.kind !== 'drm' && item.imageUri ? (
-          <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} />
+          <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} backgroundColor={theme.c.surfaceRaised} />
         ) : null}
         {item.kind === 'drm' ? (
           <Text style={styles.drmLabel} numberOfLines={1}>
@@ -34,8 +38,8 @@ export function LibraryTile({ item, onPress }: LibraryTileProps) {
             {item.title}
           </Text>
         )}
-        <View style={styles.starBadge}>
-          <Text style={styles.starBadgeText}>★{item.stars.toFixed(1)}</Text>
+        <View style={badge.starBadge}>
+          <Text style={badge.starBadgeText}>★{item.stars.toFixed(1)}</Text>
         </View>
       </View>
       <View style={styles.meta}>
@@ -50,39 +54,40 @@ export function LibraryTile({ item, onPress }: LibraryTileProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   tile: {
     flex: 1,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.border,
+    borderColor: t.c.border,
     overflow: 'hidden',
+    ...t.shadow.card,
   },
   thumb: {
     height: 140,
-    backgroundColor: tokens.surface2,
-    padding: 10,
+    backgroundColor: t.c.surfaceRaised,
+    padding: t.space.sm + 2,
     justifyContent: 'flex-end',
   },
   drmLabel: {
     margin: 'auto',
     fontSize: 13,
     fontWeight: '800',
-    color: tokens.text,
+    color: t.c.textPrimary,
     textAlign: 'center',
   },
   avatar: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: tokens.surface3,
-    marginBottom: 8,
+    backgroundColor: t.c.border,
+    marginBottom: t.space.sm,
   },
   skLine: {
     height: 7,
     borderRadius: 4,
-    backgroundColor: tokens.surface3,
+    backgroundColor: t.c.border,
     marginTop: 6,
   },
   w80: { width: '80%', marginTop: 0 },
@@ -90,38 +95,44 @@ const styles = StyleSheet.create({
     margin: 'auto',
     fontSize: 13,
     fontWeight: '800',
-    color: tokens.text,
+    color: t.c.textPrimary,
     textAlign: 'center',
   },
-  starBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  starBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: tokens.brand,
-    fontVariant: ['tabular-nums'],
-  },
   meta: {
-    padding: 10,
+    padding: t.space.sm + 2,
   },
   title: {
     fontSize: 12.5,
     fontWeight: '700',
     letterSpacing: -0.2,
     lineHeight: 17,
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   app: {
-    marginTop: 4,
-    fontSize: 10.5,
-    fontWeight: '600',
-    color: tokens.text3,
+    marginTop: t.space.xs,
+    ...t.type.caption,
+    color: t.c.textTertiary,
   },
-});
+}));
+
+/**
+ * The badge sits ON the cover image, not on a theme surface — so it paints with the cinema palette
+ * in both themes. Light mode's darker gold would disappear against the scrim.
+ */
+const useBadgeStyles = makeStyles((t) => ({
+  starBadge: {
+    position: 'absolute',
+    top: t.space.sm,
+    right: t.space.sm,
+    backgroundColor: t.c.imageScrim,
+    borderRadius: t.radius.chip,
+    paddingHorizontal: t.space.sm,
+    paddingVertical: t.space.xs,
+  },
+  starBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: t.c.accent,
+    fontVariant: ['tabular-nums'],
+  },
+}));

@@ -1,11 +1,11 @@
 import React, { Suspense, useEffect, useState } from 'react';
-import { BackHandler, StyleSheet, View } from 'react-native';
+import { BackHandler, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useShareIntent } from 'expo-share-intent';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
-import { palettes } from './src/theme/tokens';
+import { MAX_FONT_SCALE, palettes } from './src/theme/tokens';
 import { initDb } from './src/db/init';
 import { ingestShareIntent } from './src/services/shareIntake';
 import { getOnboardingCompleted } from './src/services/settings';
@@ -18,6 +18,17 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { ShareCardScreen } from './src/screens/ShareCardScreen';
 
 type Screen = 'onboarding' | 'home' | 'triage' | 'library' | 'trash' | 'settings' | 'shareCard';
+
+/**
+ * Font scaling stays enabled, but capped app-wide (핸드오프 §2-2) — past ~1.4x the deck card and
+ * the star bar stop fitting. Set once here rather than on every <Text>: `defaultProps` is the only
+ * global hook RN exposes for this, and threading a prop through ~100 call sites would rot.
+ */
+const textDefaults = { maxFontSizeMultiplier: MAX_FONT_SCALE };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(Text as any).defaultProps = { ...(Text as any).defaultProps, ...textDefaults };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(TextInput as any).defaultProps = { ...(TextInput as any).defaultProps, ...textDefaults };
 
 function RootNavigator() {
   const db = useSQLiteContext();

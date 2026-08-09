@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { BackHandler, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { tokens } from '../constants/tokens';
+import { makeStyles } from '../theme/makeStyles';
+import { SystemBars } from '../theme/SystemBars';
 import { getLibrary, getRatedCount, getTrashCount, SHARE_CARD_MIN_ITEMS } from '../db/queries';
 import { LibraryTile } from '../components/library/LibraryTile';
 import { LibraryDetailScreen } from './LibraryDetailScreen';
@@ -27,6 +28,7 @@ interface LibraryScreenProps {
 }
 
 export function LibraryScreen({ onBack, onOpenTrash, onOpenShareCard }: LibraryScreenProps) {
+  const styles = useStyles();
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<FilterKey>('all');
@@ -76,6 +78,7 @@ export function LibraryScreen({ onBack, onOpenTrash, onOpenShareCard }: LibraryS
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <SystemBars />
       <View style={styles.top}>
         <Pressable onPress={onBack} hitSlop={8}>
           <Text style={styles.ghostBtn}>닫기</Text>
@@ -134,90 +137,93 @@ export function LibraryScreen({ onBack, onOpenTrash, onOpenShareCard }: LibraryS
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   screen: {
     flex: 1,
-    backgroundColor: tokens.bg,
+    backgroundColor: t.c.bg,
   },
   top: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: t.space.xl,
+    paddingTop: t.space.md,
+    paddingBottom: t.space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   ghostBtn: {
-    color: tokens.text2,
+    color: t.c.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
   title: {
-    fontSize: 17,
+    ...t.type.heading,
     fontWeight: '700',
     letterSpacing: -0.3,
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   chips: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    gap: t.space.sm,
+    paddingHorizontal: t.space.xl,
+    paddingVertical: t.space.md,
   },
   chip: {
     paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: tokens.surface,
+    // 44pt touch target — the chip's own padding only came to ~30 (핸드오프 §5-6).
+    minHeight: 44,
+    justifyContent: 'center',
+    borderRadius: t.radius.full,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
   },
   chipOn: {
-    backgroundColor: tokens.text,
-    borderColor: tokens.text,
+    backgroundColor: t.c.textPrimary,
+    borderColor: t.c.textPrimary,
   },
   chipText: {
-    fontSize: 13,
+    ...t.type.meta,
     fontWeight: '700',
-    color: tokens.text2,
+    color: t.c.textSecondary,
     letterSpacing: -0.1,
   },
   chipTextOn: {
-    color: '#0b0b0d',
+    color: t.c.bg,
   },
   grid: {
-    paddingHorizontal: 24,
-    gap: 12,
+    paddingHorizontal: t.space.xl,
+    gap: t.space.md,
   },
   row: {
-    gap: 12,
+    gap: t.space.md,
   },
   empty: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: t.space.xxxl,
   },
   emptyText: {
-    color: tokens.text3,
-    fontSize: 14,
+    ...t.type.body,
+    color: t.c.textSecondary,
     lineHeight: 22,
     textAlign: 'center',
   },
   trashEntry: {
     position: 'absolute',
-    left: 24,
-    right: 24,
+    left: t.space.xl,
+    right: t.space.xl,
     paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: tokens.surface2,
+    borderRadius: t.radius.sheet - 4,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
     alignItems: 'center',
+    ...t.shadow.card,
   },
   trashEntryText: {
-    color: tokens.text,
+    color: t.c.textPrimary,
     fontSize: 14,
     fontWeight: '700',
   },
-});
+}));

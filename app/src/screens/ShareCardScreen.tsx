@@ -4,7 +4,9 @@ import * as Sharing from 'expo-sharing';
 import { useSQLiteContext } from 'expo-sqlite';
 import { captureRef } from 'react-native-view-shot';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { tokens } from '../constants/tokens';
+import { makeStyles } from '../theme/makeStyles';
+import { SystemBars } from '../theme/SystemBars';
+import { useTheme } from '../theme/ThemeProvider';
 import { getShareCardData, ShareCardData } from '../db/queries';
 import { CoverImage } from '../components/common/CoverImage';
 
@@ -32,6 +34,12 @@ function periodLabel(from: number | null, to: number | null): string {
  * 캡처 대상은 `cardRef`가 걸린 뷰뿐 — 버튼/헤더는 프레임 밖이라 이미지에 들어가지 않는다.
  */
 export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
+  const styles = useStyles();
+  const theme = useTheme();
+  // The card is the output, not a view of the app: pinned dark so two users sharing the same
+  // week don't produce two different-looking images (핸드오프 §4).
+  const card = useCardStyles('dark');
+  const cardTheme = useTheme('dark');
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const cardRef = useRef<View>(null);
@@ -60,6 +68,7 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
+      <SystemBars />
       <View style={styles.top}>
         <Pressable onPress={onBack} hitSlop={8}>
           <Text style={styles.ghostBtn}>닫기</Text>
@@ -69,30 +78,34 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        <View ref={cardRef} collapsable={false} style={styles.card}>
-          <Text style={styles.eyebrow}>NIGHTCAP</Text>
-          <Text style={styles.headline}>알고리즘이 고른 게 아니라{'\n'}내가 고른 것들</Text>
+        <View ref={cardRef} collapsable={false} style={card.card}>
+          <Text style={card.eyebrow}>NIGHTCAP</Text>
+          <Text style={card.headline}>알고리즘이 고른 게 아니라{'\n'}내가 고른 것들</Text>
 
-          <View style={styles.grid}>
+          <View style={card.grid}>
             {(data?.items ?? []).map((item) => (
-              <View key={item.id} style={styles.cell}>
+              <View key={item.id} style={card.cell}>
                 {item.imageUri ? (
-                  <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} />
+                  <CoverImage
+                    uri={item.imageUri}
+                    style={StyleSheet.absoluteFill}
+                    backgroundColor={cardTheme.c.surfaceRaised}
+                  />
                 ) : (
-                  <Text style={styles.cellTitle} numberOfLines={3}>
+                  <Text style={card.cellTitle} numberOfLines={3}>
                     {item.title || item.app}
                   </Text>
                 )}
-                <View style={styles.starBadge}>
-                  <Text style={styles.starBadgeText}>★ {item.stars.toFixed(1)}</Text>
+                <View style={card.starBadge}>
+                  <Text style={card.starBadgeText}>★ {item.stars.toFixed(1)}</Text>
                 </View>
               </View>
             ))}
           </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerPeriod}>{periodLabel(data?.from ?? null, data?.to ?? null)}</Text>
-            <Text style={styles.footerStats}>
+          <View style={card.footer}>
+            <Text style={card.footerPeriod}>{periodLabel(data?.from ?? null, data?.to ?? null)}</Text>
+            <Text style={card.footerStats}>
               평균 ★{(data?.avg ?? 0).toFixed(1)} · 총 {data?.total ?? 0}개
             </Text>
           </View>
@@ -107,7 +120,7 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
           accessibilityRole="button"
         >
           {sharing ? (
-            <ActivityIndicator size="small" color="#0b0b0d" />
+            <ActivityIndicator size="small" color={theme.c.onAccent} />
           ) : (
             <Text style={styles.primaryText}>이미지로 공유</Text>
           )}
@@ -117,75 +130,98 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   screen: {
     flex: 1,
-    backgroundColor: tokens.bg,
+    backgroundColor: t.c.bg,
   },
   top: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: t.space.xl,
+    paddingTop: t.space.md,
+    paddingBottom: t.space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   ghostBtn: {
-    color: tokens.text2,
+    color: t.c.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
   headerTitle: {
-    fontSize: 17,
+    ...t.type.heading,
     fontWeight: '700',
     letterSpacing: -0.3,
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   body: {
-    padding: 20,
+    padding: t.space.xl - 4,
   },
+  actions: {
+    paddingHorizontal: t.space.xl,
+    paddingTop: t.space.sm,
+  },
+  primaryBtn: {
+    paddingVertical: 17,
+    borderRadius: t.radius.sheet - 4,
+    backgroundColor: t.c.accent,
+    alignItems: 'center',
+  },
+  primaryBtnDim: {
+    opacity: 0.5,
+  },
+  primaryText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: t.c.onAccent,
+    letterSpacing: -0.2,
+  },
+}));
+
+/** Everything inside `cardRef` — pinned to the dark palette because it becomes a PNG. */
+const useCardStyles = makeStyles((t) => ({
   card: {
-    backgroundColor: tokens.surface,
-    borderRadius: tokens.radius,
+    backgroundColor: t.c.surface,
+    borderRadius: t.radius.sheet,
     borderWidth: 1,
-    borderColor: tokens.border,
+    borderColor: t.c.border,
     padding: 22,
   },
   eyebrow: {
-    fontSize: 11,
+    ...t.type.caption,
     fontWeight: '800',
     letterSpacing: 2,
-    color: tokens.brand,
+    color: t.c.accent,
   },
   headline: {
-    marginTop: 12,
-    fontSize: 22,
+    marginTop: t.space.md,
+    ...t.type.title,
     fontWeight: '800',
     letterSpacing: -0.6,
     lineHeight: 30,
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   grid: {
-    marginTop: 20,
+    marginTop: t.space.xl - 4,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: t.space.sm,
   },
   cell: {
     // 3열 + gap 8을 함께 쓰므로 100/3이 아니라 여백을 뺀 폭이어야 줄바꿈이 안 깨진다.
     width: `${100 / GRID_COLUMNS - 2.5}%`,
     aspectRatio: 0.72,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.surface2,
+    borderRadius: t.radius.card,
+    backgroundColor: t.c.surfaceRaised,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
+    padding: t.space.sm,
   },
   cellTitle: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: tokens.text2,
+    color: t.c.textSecondary,
     textAlign: 'center',
     lineHeight: 16,
   },
@@ -196,52 +232,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 7,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: t.c.imageScrim,
   },
   starBadgeText: {
     fontSize: 10.5,
     fontWeight: '800',
-    color: tokens.brand,
+    color: t.c.accent,
     fontVariant: ['tabular-nums'],
   },
   footer: {
-    marginTop: 20,
-    paddingTop: 16,
+    marginTop: t.space.xl - 4,
+    paddingTop: t.space.lg,
     borderTopWidth: 1,
-    borderTopColor: tokens.border,
+    borderTopColor: t.c.border,
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
   },
   footerPeriod: {
-    fontSize: 13,
+    ...t.type.meta,
     fontWeight: '700',
-    color: tokens.text2,
+    color: t.c.textSecondary,
     fontVariant: ['tabular-nums'],
   },
   footerStats: {
-    fontSize: 13,
+    ...t.type.meta,
     fontWeight: '700',
-    color: tokens.text,
+    color: t.c.textPrimary,
     fontVariant: ['tabular-nums'],
   },
-  actions: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
-  },
-  primaryBtn: {
-    paddingVertical: 17,
-    borderRadius: 16,
-    backgroundColor: tokens.brand,
-    alignItems: 'center',
-  },
-  primaryBtnDim: {
-    opacity: 0.5,
-  },
-  primaryText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0b0b0d',
-    letterSpacing: -0.2,
-  },
-});
+}));

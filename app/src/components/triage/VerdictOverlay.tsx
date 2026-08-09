@@ -1,7 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { tokens } from '../../constants/tokens';
+import { makeStyles } from '../../theme/makeStyles';
+import { useCinema } from '../../theme/ThemeProvider';
+import type { Colors } from '../../theme/tokens';
 
 type AnimatedViewStyle = React.ComponentProps<typeof Animated.View>['style'];
 
@@ -15,19 +17,20 @@ const LABEL: Record<OverlayKind, string> = {
   rate: '별점',
 };
 
-const ACCENT: Record<OverlayKind, string> = {
-  hold: tokens.text2,
-  prev: tokens.text2,
-  drop: tokens.danger,
-  rate: tokens.brand,
-};
+/** 보류=defer / 삭제=danger / 별점=accent (핸드오프 §4). 'prev' stays neutral — it isn't a verdict. */
+const accentFor = (c: Colors): Record<OverlayKind, string> => ({
+  hold: c.defer,
+  prev: c.textSecondary,
+  drop: c.danger,
+  rate: c.accent,
+});
 
-const BG: Record<OverlayKind, string> = {
-  hold: tokens.neutralDim,
-  prev: tokens.neutralDim,
-  drop: tokens.dangerDim,
-  rate: tokens.brandDim,
-};
+const bgFor = (c: Colors): Record<OverlayKind, string> => ({
+  hold: c.deferScrim,
+  prev: c.control,
+  drop: c.dangerScrim,
+  rate: c.accentScrim,
+});
 
 const ROTATE: Record<OverlayKind, string> = {
   hold: '-6deg',
@@ -43,24 +46,19 @@ interface VerdictOverlayProps {
 }
 
 export function VerdictOverlay({ type, style }: VerdictOverlayProps) {
+  const styles = useStyles('cinema');
+  const c = useCinema().c;
+  const accent = accentFor(c)[type];
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[styles.overlay, { backgroundColor: BG[type] }, style]}
-    >
-      <Animated.View
-        style={[
-          styles.labelBox,
-          { borderColor: ACCENT[type], transform: [{ rotate: ROTATE[type] }] },
-        ]}
-      >
-        <Text style={[styles.labelText, { color: ACCENT[type] }]}>{LABEL[type]}</Text>
+    <Animated.View pointerEvents="none" style={[styles.overlay, { backgroundColor: bgFor(c)[type] }, style]}>
+      <Animated.View style={[styles.labelBox, { borderColor: accent, transform: [{ rotate: ROTATE[type] }] }]}>
+        <Text style={[styles.labelText, { color: accent }]}>{LABEL[type]}</Text>
       </Animated.View>
     </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   overlay: {
     position: 'absolute',
     top: 0,
@@ -69,17 +67,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: tokens.radius,
+    borderRadius: t.radius.sheet,
   },
   labelBox: {
     borderWidth: 2,
     borderRadius: 14,
     paddingHorizontal: 22,
-    paddingVertical: 12,
+    paddingVertical: t.space.md,
   },
   labelText: {
-    fontSize: 22,
+    ...t.type.title,
     fontWeight: '800',
     letterSpacing: -0.4,
   },
-});
+}));

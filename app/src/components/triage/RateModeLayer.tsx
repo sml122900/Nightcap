@@ -12,7 +12,8 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
-import { tokens } from '../../constants/tokens';
+import { makeStyles } from '../../theme/makeStyles';
+import { useCinema } from '../../theme/ThemeProvider';
 import { RATE_DEFAULT_VALUE, rateValueFromRatio } from '../../constants/swipeEngine';
 import { Capture } from '../../types/capture';
 import { CoverImage } from '../common/CoverImage';
@@ -43,6 +44,7 @@ interface RateModeLayerProps {
  * A Modal renders in its own native window, so it's guaranteed to sit above the deck.
  */
 export function RateModeLayer({ item, prefill, onCommit, onCancel, onBackgroundTap }: RateModeLayerProps) {
+  const styles = useStyles('cinema');
   const value = useSharedValue(prefill);
   const starsRef = useAnimatedRef<Animated.View>();
   const [accessibleValue, setAccessibleValue] = useState(prefill);
@@ -154,13 +156,15 @@ export function RateModeLayer({ item, prefill, onCommit, onCancel, onBackgroundT
 
 /** Small stand-in for the real deck card, shown at the top of the modal (PROJECT.md §6). */
 function MiniPreview({ item }: { item: Capture }) {
+  const styles = useStyles('cinema');
+  const theme = useCinema();
   return (
     <View style={styles.miniPreview} pointerEvents="none">
       <View style={styles.miniThumb}>
         {item.kind === 'drm' ? (
           <Text style={styles.miniDrmLabel}>🔒</Text>
         ) : item.imageUri ? (
-          <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} />
+          <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} backgroundColor={theme.c.surfaceRaised} />
         ) : (
           <View style={styles.miniAvatar} />
         )}
@@ -178,6 +182,7 @@ function MiniPreview({ item }: { item: Capture }) {
 }
 
 function RateStar({ index, value }: { index: number; value: SharedValue<number> }) {
+  const styles = useStyles('cinema');
   const fillStyle = useAnimatedStyle(() => ({
     width: `${Math.min(100, Math.max(0, (value.value - index) * 100))}%`,
   }));
@@ -193,13 +198,13 @@ function RateStar({ index, value }: { index: number; value: SharedValue<number> 
 
 const STAR_SIZE = 36;
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   rootView: {
     flex: 1,
   },
   layer: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.82)',
+    backgroundColor: t.c.overlay,
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: 110,
@@ -207,22 +212,22 @@ const styles = StyleSheet.create({
   miniPreview: {
     position: 'absolute',
     top: 60,
-    left: 24,
-    right: 24,
+    left: t.space.xl,
+    right: t.space.xl,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: tokens.surface,
+    gap: t.space.md,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
-    borderRadius: 16,
-    padding: 12,
+    borderColor: t.c.border,
+    borderRadius: t.radius.sheet,
+    padding: t.space.md,
   },
   miniThumb: {
     width: 44,
     height: 44,
     borderRadius: 10,
-    backgroundColor: tokens.surface2,
+    backgroundColor: t.c.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -231,7 +236,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: tokens.surface3,
+    backgroundColor: t.c.border,
   },
   miniDrmLabel: {
     fontSize: 18,
@@ -242,32 +247,32 @@ const styles = StyleSheet.create({
   miniTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: tokens.text,
+    color: t.c.textPrimary,
     letterSpacing: -0.2,
   },
   miniSrc: {
     marginTop: 2,
     fontSize: 12,
-    color: tokens.text3,
+    color: t.c.textTertiary,
   },
   value: {
     fontSize: 60,
     fontWeight: '800',
-    color: tokens.brand,
+    color: t.c.accent,
     letterSpacing: -1,
     padding: 0,
     textAlign: 'center',
   },
   starsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
+    gap: t.space.md,
+    marginTop: t.space.xl - 4,
     paddingHorizontal: 22,
     paddingVertical: 18,
-    backgroundColor: tokens.surface,
+    backgroundColor: t.c.surface,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
-    borderRadius: 20,
+    borderColor: t.c.border,
+    borderRadius: t.radius.sheet,
   },
   starWrap: {
     width: STAR_SIZE,
@@ -280,7 +285,7 @@ const styles = StyleSheet.create({
     width: STAR_SIZE,
     fontSize: STAR_SIZE,
     lineHeight: STAR_SIZE,
-    color: tokens.surface3,
+    color: t.c.border,
     textAlign: 'center',
   },
   starFillClip: {
@@ -294,14 +299,14 @@ const styles = StyleSheet.create({
     width: STAR_SIZE,
     fontSize: STAR_SIZE,
     lineHeight: STAR_SIZE,
-    color: tokens.brand,
+    color: t.c.accent,
     textAlign: 'left',
   },
   hint: {
-    marginTop: 16,
-    fontSize: 13,
+    marginTop: t.space.lg,
+    ...t.type.meta,
     fontWeight: '600',
-    color: tokens.text2,
+    color: t.c.textSecondary,
     letterSpacing: -0.1,
   },
   a11yRow: {
@@ -310,15 +315,16 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   a11yBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingHorizontal: t.space.lg,
+    minHeight: 44,
+    justifyContent: 'center',
+    borderRadius: t.radius.card,
     borderWidth: 1,
-    borderColor: tokens.borderStrong,
+    borderColor: t.c.border,
   },
   a11yBtnText: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: tokens.text2,
+    color: t.c.textSecondary,
   },
-});
+}));

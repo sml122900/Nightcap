@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import { tokens } from '../../constants/tokens';
+import { makeStyles } from '../../theme/makeStyles';
+import { useCinema } from '../../theme/ThemeProvider';
 import { Capture } from '../../types/capture';
 import { CoverImage } from '../common/CoverImage';
 
@@ -12,6 +13,8 @@ interface CardContentProps {
 
 /** Static (non-animated) card body: thumb skeleton + meta. Shared by the live card and the exit-flight ghost. */
 export function CardContent({ item, onTitleChange }: CardContentProps) {
+  const styles = useStyles('cinema');
+  const theme = useCinema();
   return (
     <>
       {item.kind === 'drm' ? (
@@ -21,7 +24,7 @@ export function CardContent({ item, onTitleChange }: CardContentProps) {
             value={item.title}
             onChangeText={(text) => onTitleChange?.(item.id, text)}
             placeholder="작품 제목을 입력하세요"
-            placeholderTextColor={tokens.text3}
+            placeholderTextColor={theme.c.textTertiary}
             multiline
             numberOfLines={2}
             textAlign="center"
@@ -30,7 +33,9 @@ export function CardContent({ item, onTitleChange }: CardContentProps) {
         </View>
       ) : (
         <View style={styles.thumb}>
-          {item.imageUri ? <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} /> : null}
+          {item.imageUri ? (
+            <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} backgroundColor={theme.c.bg} />
+          ) : null}
           <View style={styles.appChip}>
             <Text style={styles.appChipText}>{item.app}</Text>
           </View>
@@ -75,21 +80,21 @@ export function CardContent({ item, onTitleChange }: CardContentProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   thumb: {
     flex: 1,
-    backgroundColor: tokens.surface2,
+    backgroundColor: t.c.surfaceRaised,
     borderBottomWidth: 1,
-    borderBottomColor: tokens.border,
+    borderBottomColor: t.c.border,
     justifyContent: 'flex-end',
     padding: 18,
     overflow: 'hidden',
   },
   drm: {
     flex: 1,
-    backgroundColor: tokens.surface2,
+    backgroundColor: t.c.surfaceRaised,
     borderBottomWidth: 1,
-    borderBottomColor: tokens.border,
+    borderBottomColor: t.c.border,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
@@ -100,55 +105,55 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.6,
-    color: tokens.text,
+    color: t.c.textPrimary,
     padding: 0,
   },
   drmNote: {
     fontSize: 12,
-    color: tokens.text3,
+    color: t.c.textTertiary,
   },
   appChip: {
     position: 'absolute',
     top: 14,
     left: 14,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: t.c.imageScrim,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: t.c.control,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: t.radius.chip,
   },
   appChipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   timeChip: {
     position: 'absolute',
     top: 14,
     right: 14,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: t.c.imageScrimSoft,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: t.radius.chip,
   },
   timeChipText: {
     fontSize: 11,
     fontWeight: '600',
-    color: tokens.text2,
+    color: t.c.textSecondary,
     fontVariant: ['tabular-nums'],
   },
   avatar: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: tokens.surface3,
+    backgroundColor: t.c.border,
     marginBottom: 10,
   },
   skLine: {
     height: 9,
     borderRadius: 5,
-    backgroundColor: tokens.surface3,
+    backgroundColor: t.c.border,
   },
   w80: { width: '80%' },
   w40: { width: '40%' },
@@ -157,7 +162,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.4,
     lineHeight: 26,
-    color: tokens.text,
+    color: t.c.textPrimary,
     textAlign: 'center',
   },
   progressBar: {
@@ -166,28 +171,28 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: 3,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: t.c.control,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: t.c.onImage,
     borderRadius: 2,
   },
   meta: {
     padding: 18,
-    paddingTop: 16,
+    paddingTop: t.space.lg,
   },
   ttl: {
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.3,
     lineHeight: 22,
-    color: tokens.text,
+    color: t.c.textPrimary,
   },
   src: {
     marginTop: 5,
     fontSize: 12.5,
-    color: tokens.text3,
+    color: t.c.textTertiary,
     letterSpacing: -0.1,
   },
   linkChip: {
@@ -195,12 +200,12 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: tokens.brandDim,
+    borderRadius: t.radius.chip,
+    backgroundColor: t.c.accentMuted,
   },
   linkChipText: {
-    fontSize: 11.5,
+    ...t.type.caption,
     fontWeight: '700',
-    color: tokens.brand,
+    color: t.c.accent,
   },
-});
+}));
