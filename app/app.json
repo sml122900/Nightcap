@@ -21,9 +21,6 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.nightcap"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
     "plugins": [
       "expo-sqlite",
       "expo-dev-client",
