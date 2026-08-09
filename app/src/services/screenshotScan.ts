@@ -9,52 +9,72 @@ import { getAutoScanEnabled, setAutoScanEnabled } from './settings';
 const CAPTURES_DIR_NAME = 'captures';
 const LAST_SCAN_KEY = 'last_scan_at';
 
-export interface MediaAccessStatus {
-  granted: boolean;
-  accessPrivileges: 'all' | 'limited' | 'none';
+/**
+ * The only shape the app should reason about. Android 14+ has three states, not two, and the
+ * two-state reading is actively wrong: under `limited` the OS grants
+ * `READ_MEDIA_VISUAL_USER_SELECTED` while `READ_MEDIA_IMAGES` stays denied, so anything keying off
+ * that single permission calls a granted user "denied"
+ * (docs/decisions/android15-limited-media-access.md).
+ *
+ * - `all`     — full library. The scan works as designed.
+ * - `limited` — only the assets the user picked. Real access, but a *newly taken* screenshot can
+ *               never be in that set, so auto-scan produces nothing until they widen it.
+ * - `none`    — denied. The scan silently no-ops.
+ */
+export type MediaAccess = 'all' | 'limited' | 'none';
+
+function toAccess(permission: MediaLibrary.PermissionResponse): MediaAccess {
+  if (!permission.granted) return 'none';
+  return permission.accessPrivileges === 'limited' ? 'limited' : 'all';
 }
 
-function toAccessStatus(permission: MediaLibrary.PermissionResponse): MediaAccessStatus {
-  return { granted: permission.granted, accessPrivileges: permission.accessPrivileges ?? 'none' };
+export async function getMediaAccess(): Promise<MediaAccess> {
+  return toAccess(await MediaLibrary.getPermissionsAsync(false, ['photo']));
 }
 
-export async function getMediaAccessStatus(): Promise<MediaAccessStatus> {
-  return toAccessStatus(await MediaLibrary.getPermissionsAsync(false, ['photo']));
+export async function requestMediaAccess(): Promise<MediaAccess> {
+  return toAccess(await MediaLibrary.requestPermissionsAsync(false, ['photo']));
 }
 
-export async function requestMediaAccess(): Promise<MediaAccessStatus> {
-  return toAccessStatus(await MediaLibrary.requestPermissionsAsync(false, ['photo']));
+/** What a screen needs to render the toggle *and* the limited-access notice from one call. */
+export interface AutoScanState {
+  enabled: boolean;
+  access: MediaAccess;
 }
 
 /**
  * Turning auto-scan on IS a request for photo access, so the stored flag has to follow what the
- * user actually granted. Storing `true` after a denial makes the settings screen lie: the toggle
- * reads "on" while the scan can never run.
+ * user actually granted — storing `true` after a denial makes the settings screen lie.
  *
- * Returns the value that was persisted, which is what the caller should render.
+ * `limited` counts as on. The user really does have access and their picked photos really are
+ * collected; forcing the toggle off there would be a different lie. The gap (new screenshots aren't
+ * seen) is communicated by the notice instead.
  */
-export async function setAutoScanRequested(db: SQLiteDatabase, wanted: boolean): Promise<boolean> {
+export async function setAutoScanRequested(db: SQLiteDatabase, wanted: boolean): Promise<AutoScanState> {
   if (!wanted) {
     await setAutoScanEnabled(db, false);
-    return false;
+    return { enabled: false, access: await getMediaAccess() };
   }
   const access = await requestMediaAccess();
-  await setAutoScanEnabled(db, access.granted);
-  return access.granted;
+  const enabled = access !== 'none';
+  await setAutoScanEnabled(db, enabled);
+  return { enabled, access };
 }
 
 /**
  * Access can be revoked from the system settings while the app is backgrounded, so the stored flag
  * goes stale without the app ever being told. Re-checks and *persists* the correction — leaving it
  * as screen-local state would let the next launch resurrect the stale `true`.
+ *
+ * Only `none` forces the flag off; `limited` leaves the stored value alone.
  */
-export async function syncAutoScanWithPermission(db: SQLiteDatabase): Promise<boolean> {
-  const enabled = await getAutoScanEnabled(db);
-  if (!enabled) return false;
-  const access = await getMediaAccessStatus();
-  if (access.granted) return true;
+export async function syncAutoScanWithPermission(db: SQLiteDatabase): Promise<AutoScanState> {
+  const access = await getMediaAccess();
+  const stored = await getAutoScanEnabled(db);
+  if (!stored) return { enabled: false, access };
+  if (access !== 'none') return { enabled: true, access };
   await setAutoScanEnabled(db, false);
-  return false;
+  return { enabled: false, access };
 }
 
 /** Android 14+/iOS: re-opens the system picker so a "limited" grant can be widened to "all". */
@@ -160,8 +180,9 @@ async function setWatermark(db: SQLiteDatabase, value: number): Promise<void> {
  */
 export async function scanNewScreenshots(db: SQLiteDatabase): Promise<void> {
   try {
-    const access = await getMediaAccessStatus();
-    if (!access.granted) return;
+    // `limited` still runs: the user's picked assets are legitimately scannable. It just can't
+    // see anything taken after the fact, which the UI explains rather than this function refusing.
+    if ((await getMediaAccess()) === 'none') return;
 
     const lastSync = await getWatermark(db);
     if (lastSync === null) {

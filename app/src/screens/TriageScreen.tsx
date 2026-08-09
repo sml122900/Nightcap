@@ -25,8 +25,8 @@ import {
   startTriageSession,
 } from '../services/metrics';
 import {
-  getMediaAccessStatus,
-  MediaAccessStatus,
+  getMediaAccess,
+  MediaAccess,
   presentAccessPicker,
   scanNewScreenshots,
 } from '../services/screenshotScan';
@@ -77,7 +77,7 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
   const [isRating, setIsRating] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [accessStatus, setAccessStatus] = useState<MediaAccessStatus | null>(null);
+  const [access, setAccess] = useState<MediaAccess | null>(null);
   const [scanning, setScanning] = useState(false);
   const [ratedCount, setRatedCount] = useState(0);
   const deckRef = useRef<TriageDeckHandle>(null);
@@ -190,9 +190,9 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
       // Read only to drive the partial-access banner. Whether the scan may run is decided inside
       // `scanNewScreenshots`, which returns silently when access is denied — the deck itself no
       // longer depends on photo permission at all.
-      const access = await getMediaAccessStatus();
+      const current = await getMediaAccess();
       if (cancelled) return;
-      setAccessStatus(access);
+      setAccess(current);
       await runScanAndMerge();
     })();
     return () => {
@@ -225,8 +225,7 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
       (async () => {
         const enabled = await getAutoScanEnabled(db);
         if (!enabled) return;
-        const access = await getMediaAccessStatus();
-        setAccessStatus(access);
+        setAccess(await getMediaAccess());
         await runScanAndMerge();
       })();
     });
@@ -235,9 +234,9 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
 
   const handleRequestFullAccess = async () => {
     await presentAccessPicker();
-    const access = await getMediaAccessStatus();
-    setAccessStatus(access);
-    if (access.granted) runScanAndMerge();
+    const current = await getMediaAccess();
+    setAccess(current);
+    if (current !== 'none') runScanAndMerge();
   };
 
   /** DRM card title input (PROJECT.md §3.4/§5) — updates the live card immediately, persists async. */
@@ -364,7 +363,7 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
         <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
       </View>
 
-      {accessStatus?.accessPrivileges === 'limited' ? (
+      {access === 'limited' ? (
         <PartialAccessBanner onRequestFullAccess={handleRequestFullAccess} />
       ) : null}
 

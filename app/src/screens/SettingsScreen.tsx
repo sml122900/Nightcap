@@ -51,7 +51,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   useEffect(() => {
     const resync = () => {
       syncAutoScanWithPermission(db)
-        .then(setAutoScan)
+        .then((state) => setAutoScan(state.enabled))
         .catch((err) => console.warn('[settings] auto-scan sync failed', err));
     };
     resync();
@@ -71,7 +71,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   const handleToggle = async (value: boolean) => {
     // Optimistic, then corrected by what was actually granted — turning it on can be denied.
     setAutoScan(value);
-    setAutoScan(await setAutoScanRequested(db, value));
+    setAutoScan((await setAutoScanRequested(db, value)).enabled);
   };
 
   const handleVersionTap = () => {

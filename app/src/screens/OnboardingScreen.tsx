@@ -28,7 +28,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     // Denying the permission has to turn the toggle back off — same rule as the settings screen.
     // Either outcome continues to the next page; the scan just no-ops when it isn't allowed.
     setAutoScan(value);
-    setAutoScan(await setAutoScanRequested(db, value));
+    setAutoScan((await setAutoScanRequested(db, value)).enabled);
   };
 
   const handleFinish = async () => {
