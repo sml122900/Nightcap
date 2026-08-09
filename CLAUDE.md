@@ -4,7 +4,7 @@
 
 ## 진행상황
 
-**완료 (W1, W2, W3-1, W3-2)**
+**완료 (W1, W2, W3-1, W3-2, W3-3)**
 - 정리 모드 스와이프 엔진: 4방향 제스처(보류/이전/삭제/별점모드) + 별점 모드(도킹+드래그+접근성) — `app/src/components/triage/`, `app/src/constants/swipeEngine.ts`
 - SQLite 영속화 + 마이그레이션(v5까지: captures/meta/content_hash/source_author + 1회성 엔티티 디코딩 데이터 정리) — `app/src/db/`
 - 휴지통(소프트 삭제 7일 + 세션종료 일괄 삭제 + 강제종료 재시도) — `app/src/services/trash.ts`
@@ -20,8 +20,13 @@
   - 설정 화면(`app/src/screens/SettingsScreen.tsx`) 신설: 스크린샷 자동 수집 토글 1개(기본 OFF).
 - **첫 실행 온보딩(3장, W3-2)** — `app/src/screens/OnboardingScreen.tsx` 신설: 탭으로 넘기는 3단계(정체성 공감 카피 → 공유시트 사용법 스켈레톤 목업 → 자동 수집 권한 토글+CTA). 완료 여부는 `meta.onboarding_completed_at`(`app/src/services/settings.ts`의 `getOnboardingCompleted`/`setOnboardingCompleted`, 기존 `auto_scan_enabled`와 같은 upsert 패턴)로 저장 — `App.tsx`의 `RootNavigator`가 마운트 시 이 플래그를 읽어 미완료면 온보딩을, 완료면 기존 홈 로직을 그대로 태운다. 3장 토글 ON 시 `requestMediaAccess()`(기존엔 어디서도 호출 안 되던 정식 권한 요청 함수)를 호출하고 결과와 무관하게 진행 — 거부해도 스캔 파이프라인이 조용히 no-op하므로 별도 분기 불필요. iOS 백탭/버블 GIF 온보딩은 이걸로 대체(아래 참고).
 
+- **도그푸딩 계측(W3-3 A)** — 마이그레이션 v6(`captures.intake_source`/`has_link` + `triage_sessions` 테이블, 백필은 확정 가능한 것만) + `app/src/services/metrics.ts`. `TriageScreen`이 진입 시 세션 open → 판정마다 카운터(±1, 되돌리기 반영) → Done 도달 시 `completed=1` / 언마운트·백그라운드 5분 초과 시 `completed=0`으로 닫고 새 세션. 세션 쓰기도 writeQueue(`session:{id}`) 경유. '보류'는 rate@2.5로 즉시 커밋돼 rate 모드 2.5와 구분이 안 되므로 `TriageDeck.onCommit`에 `quickHold` 플래그를 추가해 `deferred`/`kept`를 가름. 설정 화면 하단 개발자 섹션에 리터럴 숫자로 표시(도그푸딩은 릴리즈 빌드로 하므로 `__DEV__` 대신 버전 라벨 5탭 히든 게이트 병행).
+- **Direct Share 등록(W3-3 B)** — `app/plugins/withDirectShareShortcut.js`: `res/xml/shortcuts.xml`(share-target + 정적 shortcut) + MainActivity `android.app.shortcuts` meta-data + 라벨 string. `dumpsys shortcut`으로 `categories={com.anonymous.nightcap.category.SHARE_TARGET}` 등록 확인됨. 실제 공유시트 상단 행 노출은 실기기 육안 확인 필요(정적 share-target만으로 상단행에 뜨지 않으면 동적 shortcut push가 필요 — 그건 네이티브 코드).
+- **클립보드 URL 병합(W3-3 C)** — `app/src/services/clipboardLink.ts`. 이미지 유입 시 클립보드가 URL이고 `meta.last_clipboard_url`과 다를 때만 병합. Android엔 클립보드 타임스탬프가 없어 "30분 이내"를 직접 못 재고 문자열 변화 감지가 실질 게이트. `image_uri`는 절대 안 덮음(스샷이 원본). 카드 "🔗 링크 포함" 라벨 + 보관함 상세 "링크 해제". 시도/성공 카운터는 개발자 섹션에 노출.
+- **공유 카드(W3-3 D)** — `app/src/screens/ShareCardScreen.tsx`: 상단 카피 / 별점 상위 4~9장 3열 그리드 / 하단 기간·평균·총 개수. `captureRef`는 카드 뷰에만. 진입은 완료 요약 + 보관함 상단, 4장 미만이면 버튼 숨김.
+
 **진행 중 아님 / 다음 단계 (W4~)**
-- 공유 카드 화면(Letterboxd 스타일)
+- 플로팅 버블 — W3-3 계측 2주치 보고 판단(스펙은 PROJECT.md §10에 선반영: 재탭 병합/피드백 라벨/하단 끌어 숨김)
 - 보관함 진짜 메이슨리(현재는 고정 2열 그리드로 단순화됨)
 - `DRM_LUMINANCE_THRESHOLD` 실기기 튜닝(다크모드 오탐 체크 포함, 아직 미검증)
 - iOS 공유시트(Share Extension) 실기기 검증 — macOS/Xcode 환경이 없어 이번 라운드는 Android(`expo run:android`)만 실기기 확인, iOS는 `expo prebuild`까지만(네이티브 프로젝트 생성 확인) 하고 실행은 못 함
@@ -29,6 +34,7 @@
 **알려진 제약**
 - 별점 모드 손맛/접근성은 실기기 육안·TalkBack 확인이 아직 필요
 - 릴리즈 빌드는 실기기(Galaxy S24+)에 설치까지 확인됨. 다만 스캔/DRM/휴지통 등 실제 기능 동작은 PROJECT.md 체크리스트로 수동 검증 필요 — 공유시트 유입 경로(이미지/URL 공유)는 이번 라운드에 dev-client 빌드 후 실기기로 검증 예정(사용자 확인 필요, PROJECT.md §7 체크리스트)
+- 2026-08-09: W3-3 네이티브 리빌드(dev-client debug) + 설치까지 확인(`adb install` Success, `lastUpdateTime` 갱신, `dumpsys shortcut`에 share-target 등록). 지시대로 `am start`는 하지 않음 — 실제 기능(공유시트 상단 노출/클립보드 병합/공유 카드 이미지)은 실기기 수동 검증 필요
 - 2026-07-13: W3-2 반영분 릴리즈 재빌드+실행 확인 완료 — 빌드 성공(3m30s), `dumpsys package` `lastUpdateTime` + `dumpsys activity` `ResumedActivity=com.anonymous.nightcap/.MainActivity`로 설치·포그라운드 실행 모두 확인(`docs/troubleshooting/release-build-launch-confirmation-cut-off.md`의 미해결 항목 해소). 단, 이건 "앱이 켜진다"만 확인된 것 — 공유시트 유입 등 실제 기능 동작은 여전히 PROJECT.md §7 체크리스트로 수동 검증 필요
 - Android `FLAG_SECURE`(넷플릭스 등) 콘텐츠는 스크린샷 자체가 차단돼 스캔 경로로 DRM 카드가 실제로 만들어지는 일은 없음(지뢰 목록 참고) — 검증은 검정 이미지 스샷으로 대체
 
@@ -172,6 +178,7 @@ SQLite 스키마 변경은 `PRAGMA user_version` 마이그레이션 러너(`app/
 - 서드파티 네이티브 모듈이 AGP 버전 조건부로 Kotlin/Java JVM 타깃 설정을 건너뛰어(dead code) 릴리즈 빌드가 실패할 수 있다 — `android/build.gradle`을 직접 고쳐도 `expo prebuild`가 매번 지우므로, 고정은 반드시 config plugin(`app/plugins/withKotlinJvmTargetFix.js`)으로. `docs/troubleshooting/kotlin-jvm-target-mismatch-release-build.md` 참고.
 - 릴리즈 빌드+설치가 다 끝났는데도 `expo run:android`가 응답 없이 멈춰 있으면, 로그가 없다고 바로 "멈췄다"고 판단하지 말고 데몬 CPU 사용률·APK 산출물 타임스탬프·기기 화면 잠금 상태부터 확인할 것 — 화면이 잠겨있으면 마지막 `am start` 단계에서 그냥 대기만 하고 있는 것일 수 있다. `docs/troubleshooting/adb-install-hang-locked-device.md` 참고.
 - `expo-crypto`의 `Crypto.digest()`에 다른 네이티브 모듈(`expo-file-system`의 `File.arrayBuffer()` 등)이 반환한 순수 `ArrayBuffer`를 그대로 넘기면 안드로이드에서 `no ArrayBuffer attached`로 조용히 실패한다 — `new Uint8Array(buffer)`로 감싸서 TypedArray 뷰로 넘길 것. `docs/troubleshooting/expo-crypto-digest-arraybuffer-attach.md` 참고.
+- 이 머신은 사용자 경로가 한글(`C:\Users\이성민`)이고 `sun.jnu.encoding=MS949`라, 네이티브 빌드 전에 `TMP`/`TEMP`(→ `C:\tmp_expo`)와 `GRADLE_USER_HOME`(→ `C:\gradle_home`)을 ASCII 경로로 지정해야 한다. 안 하면 `expo prebuild`는 node 세그폴트, Gradle은 `ClassNotFoundException: GradleWorkerMain`으로 죽는다 — 둘 다 우리 코드와 무관해 보이는 자리에서 터진다. `docs/troubleshooting/non-ascii-user-path-breaks-prebuild-and-gradle.md` 참고.
 - 이미지 크롭 컴포넌트(`CoverImage`)를 세로 이미지(스크린샷) 기준으로만 짜지 말 것 — 가로형 이미지(링크 썸네일 등)가 들어오면 크롭 방향이 반대여야 한다. 컨테이너/이미지 비율을 실측 비교해서 분기하는 현재 구현이 정답. `docs/troubleshooting/coverimage-landscape-thumbnail-empty-space.md` 참고.
 
 코드 규칙

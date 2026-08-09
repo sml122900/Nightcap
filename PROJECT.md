@@ -42,11 +42,20 @@ npx expo prebuild
 - 이미지 공유: 기존 스크린샷 스캔 파이프라인의 사본복사(`services/screenshotScan.ts`의 `copyToSandbox`)와 DRM 판별(`isLikelyDrm`)을 그대로 재사용(`services/shareIntake.ts`). `asset_id`가 없으므로 파일 SHA-256 해시(`content_hash` 컬럼, 부분 유니크 인덱스)로 재공유 dedup.
 - 텍스트/URL 공유: `source_url` 저장, URL 호스트에서 출처 앱 추론(`constants/sourceApps.ts`의 매핑 상수로 격리 — youtube.com/youtu.be→유튜브, instagram.com→인스타, netflix.com→넷플릭스 등). 공유 텍스트/웹페이지 메타에서 제목 후보 추출해 `title`에, 없으면 URL 자체로 폴백. `kind='text'`, 이미지 없음.
 - Android는 `androidIntentFilters: ["text/*", "image/*"]`, iOS는 `iosActivationRules`(WebURL/WebPage/Image)로 app.json 플러그인 설정. 네이티브 모듈이라 `expo prebuild` + dev-client 리빌드 필요(Expo Go 불가).
+- **Direct Share(Sharing Shortcuts) 등록**(W3-3): 공유시트 "더보기"를 뒤지지 않고 상단 행에서 바로 고를 수 있게 `res/xml/shortcuts.xml`(`<share-target>` + 정적 shortcut)과 `MainActivity`의 `android.app.shortcuts` meta-data를 config plugin(`plugins/withDirectShareShortcut.js`)으로 생성한다. `share-target`의 `targetClass`는 expo-share-intent가 이미 intent-filter를 붙여둔 `.MainActivity`라 수신 코드는 그대로다. shortcut 자체의 intent는 `ACTION_SEND`가 아니라 `ACTION_MAIN` — 런처 롱프레스로 실행하면 payload 없는 SEND가 들어와 빈 인테이크를 시도하게 된다.
 
 ### 3.3 스크린샷 자동 스캔 (옵션, 기본 OFF)
 - 설정 화면(`SettingsScreen`) 토글 1개, `meta` 테이블에 저장(`services/settings.ts`). OFF 상태에선 사진 라이브러리 권한 요청 자체를 하지 않음 — 온보딩 마찰 감소.
 - ON일 때 로직은 기존과 동일: 앱 포그라운드 진입 시 `MediaLibrary` `Screenshots` 앨범(+파일명 폴백)을 마지막 동기화 이후로 스캔, 사본복사 → DRM 판별 → INSERT.
 - Android 플로팅 버블/iOS 백탭 온보딩 등 "자동 감지" 강화는 이 옵션 경로에 한해 v2 이후 고려(현재는 포그라운드 스캔만).
+
+### 3.3-1 클립보드 URL 병합 (W3-3)
+- 문제: 스샷/이미지로 담은 카드는 원본으로 돌아갈 길이 없다(링크 공유 카드와 달리 `source_url`이 비어있음). 버블의 선행 작업이 아니라 이 공백 자체를 메우는 단독 기능.
+- 규칙: 이미지 유입(자동 스캔 / 공유시트 이미지) 시점에 클립보드를 읽어 URL 형태면, **직전에 처리한 문자열과 다를 때만** 신선하다고 보고 병합(`services/clipboardLink.ts`, 마지막 문자열은 `meta.last_clipboard_url`).
+- Android에는 클립보드 타임스탬프 API가 없어 "직전 30분 이내"를 직접 잴 수 없다 — 문자열 변화 감지가 실질 게이트다. 같은 문자열이 반복 등장하면 예전에 복사해 둔 것으로 보고 병합하지 않는다(오염 방지 우선).
+- 병합 시 `source_url`/`has_link=1`/`source_app`을 채우고 제목·게시자는 `urlMetadata`로 보강한다. **`image_uri`는 건드리지 않는다** — 캡처 자체가 사용자가 찍은 스샷인데 og:image로 덮으면 정작 담은 것을 버리게 된다(링크 공유 경로와 다른 점).
+- 스캔 배치에선 새로 들어온 첫 장에만 시도한다. 클립보드 링크는 하나뿐이라 여러 장에 붙이면 추측이 된다.
+- UI: 카드에 "🔗 링크 포함" 라벨(사용자가 규칙을 학습해야 함) + 보관함 상세에 "링크 해제"(잘못 붙은 링크를 뗄 수 없으면 기능 자체가 불신됨).
 
 ### 3.4 DRM 분기 (필수)
 - 넷플릭스/티빙/디즈니+ 등 `FLAG_SECURE` 콘텐츠는 스크린샷이 검은 화면.
@@ -69,6 +78,13 @@ npx expo prebuild
 - 히어로(앰버 인버트 블록): "평균 별점" — 평가한(rated) 캡처의 평균, 소수 1자리, 평가 0장이면 "—"
 - 행: 평가한 캡처 N / 보류 · 내일로 이월 N / 삭제 · 사진첩에서 제거 N / 최다 출처
 - 하단 카피: "삭제한 N장은 휴지통에 7일 보관 후 완전히 지워져요." + 보류가 있으면 "보류한 N장은 내일 스택 맨 위에서 다시 만나요."
+
+**공유 카드 화면 상세**(`ShareCardScreen`, W3-3):
+- 구성: 상단 카피("알고리즘이 고른 게 아니라 / 내가 고른 것들") / 별점 상위 4~9장 3열 그리드(`CoverImage` 재사용, 별점 배지) / 하단 기간 · 평균 별점 · 총 개수
+- `captureRef`는 카드 뷰에만 걸어 헤더·버튼이 이미지에 들어가지 않게 한다. 저장 후 `Sharing.shareAsync`
+- 진입: 완료 요약 + 보관함 상단. 별점 4장 미만이면 두 곳 다 **버튼 자체를 숨긴다**(보관함은 별점 필터와 무관하게 전체 기준)
+
+**설정 화면 개발자 섹션**(W3-3 A-3): 최근 14일 세션 수/일평균, 완주 수, 보류 비율, 세션 소요 중앙값, 캡처 수, 링크 비율, 유입 경로 분포, 클립보드 병합 누적. 리터럴 숫자만, 차트 없음. 도그푸딩은 릴리즈 빌드로 하므로 `__DEV__`만으로 감추면 정작 볼 수 없어 버전 라벨 5탭 히든 게이트를 함께 둔다.
 
 **보관함 화면 상세**:
 - 별점 배지: 소수 1자리 표기 (예: ★3.5)
@@ -158,7 +174,21 @@ CREATE TABLE captures (
   is_drm        INTEGER DEFAULT 0,
   kind          TEXT NOT NULL DEFAULT 'video' CHECK(kind IN ('video','text','drm')),
   channel       TEXT,                      -- 출처 채널/핸들 (예: '@요리하는_공대생'), source_url과 별개
-  progress      TEXT                       -- 영상 시청 진행률 (예: '62%'), video kind만
+  progress      TEXT,                      -- 영상 시청 진행률 (예: '62%'), video kind만
+  intake_source TEXT,                      -- (v6) 'screenshot_scan'|'share_image'|'share_url'|'bubble'(예약)
+  has_link      INTEGER NOT NULL DEFAULT 0 -- (v6) 링크 보유 여부, 집계 편의용
+);
+
+-- (v6) 도그푸딩 계측: W4 플로팅 버블 도입 여부를 감이 아니라 데이터로 정하기 위한 세션 기록
+CREATE TABLE triage_sessions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at  INTEGER NOT NULL,
+  ended_at    INTEGER,
+  completed   INTEGER NOT NULL DEFAULT 0,  -- 끝까지 갔는지 vs 중도 이탈
+  total_cards INTEGER NOT NULL DEFAULT 0,
+  kept        INTEGER NOT NULL DEFAULT 0,  -- 별점 모드로 실제 평가
+  deferred    INTEGER NOT NULL DEFAULT 0,  -- ← '보류' 스와이프(= rate@2.5 즉시 커밋)
+  deleted     INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_captures_stack ON captures(triaged_at) WHERE triaged_at IS NULL;
 CREATE INDEX idx_captures_stars ON captures(stars, triaged_at);
@@ -168,6 +198,8 @@ CREATE INDEX idx_captures_trash ON captures(deleted_at) WHERE deleted_at IS NOT 
 - `kind`/`channel`/`progress`는 위 §7 초안에 없던 컬럼: `is_drm` 플래그만으로는 video/text를 구분할 수 없고, `source_url`은 채널 핸들과 의미가 달라 카드 렌더링(§6 카드 UI)에 반드시 필요해 마이그레이션 1에 포함시켰다.
 - `verdict` CHECK의 `'hold'`와 `held_count` 컬럼은 과거 "보류=내일 이월" 설계의 흔적으로 스키마에는 남아있지만 더 이상 어떤 코드도 쓰지 않는다(← 스와이프는 즉시 `rated`로 커밋, `docs/decisions/hold-becomes-quick-rate.md`) — 기존 설치본 마이그레이션 비용 대비 이득이 없어 컬럼 제거는 보류.
 - 평가 생략 기본값 = 2.5 (별점 모드 바깥 탭, 그리고 ← 빠른 평가 스와이프 모두 이 값으로 즉시 커밋).
+- `intake_source` 백필(v6)은 기존 컬럼으로 **확정** 가능한 것만 채운다(`asset_id`⇒scan, `content_hash`⇒share_image, 둘 다 없고 `source_url`만 있으면 share_url). 나머지(목데이터)는 NULL 유지 — 추정값을 넣으면 이 계측이 재려는 비율 자체가 오염된다.
+- `triage_sessions.deferred`는 '보류'가 rate@2.5로 즉시 커밋된 뒤에도 "보류 비율" 신호를 유지하기 위한 것이다. 화면 레벨에선 rate 모드의 2.5와 구분되지 않으므로 `TriageDeck`의 `onCommit(..., quickHold)` 플래그로 가른다.
 - verdict 'drop' 행은 통계용으로 남기되, 휴지통 보관 기간(7일) 동안은 image_uri/asset을 유지하고 기간 만료 후 이미지 파일만 삭제(행 자체는 유지).
 - 사진첩 원본 삭제는 스와이프 시점이 아니라 **정리 세션 종료 시 일괄** 처리(§8). 별도 pending 테이블 없이, "`deleted_at`이 있고 asset이 아직 존재" 조건으로 다음 세션에서 재조회해 큐를 재구성할 수 있어야 함(강제종료 유실 대비).
 
@@ -184,14 +216,19 @@ CREATE INDEX idx_captures_trash ON captures(deleted_at) WHERE deleted_at IS NOT 
 
 **포함**: 스크린샷 스캔 적재(iOS/Android) · 정리 모드(스와이프+햅틱, "이전" 스와이프가 undo 겸임) · 삭제 시 휴지통 이동(7일 보관) + 세션 종료 시 사진첩 일괄 삭제 · 휴지통 복원 · Wrapped 요약 · 보관함 메이슨리+별점 구간 필터 · 공유 카드 이미지 저장(view-shot) · 첫 실행 온보딩(3장 탭 진행: 정체성/공유시트 사용법/자동 수집 권한, `meta.onboarding_completed_at`으로 재실행 시 스킵) · DRM 분기 · 다크 온리.
 
-**제외 (v2 백로그)**: Share Extension 딥 연동 · 클립보드 URL 자동 파싱 고도화 · OCR/AI 태깅(Claude API로 스샷 → 앱/제목 추론) · Supabase 동기화 & 웹 공유 링크 · 홈 위젯 · 주간/월간 Wrapped · 친구 팔로우.
+클립보드 URL 병합은 W3-3에서 **기본 규칙 수준으로 포함**됐다(§3.3-1). 여기서 더 나가는 것(히스토리 기반 추론, 여러 후보 중 선택 UI 등)은 여전히 v2 백로그.
+
+**제외 (v2 백로그)**: Share Extension 딥 연동 · 클립보드 URL 파싱 고도화 · OCR/AI 태깅(Claude API로 스샷 → 앱/제목 추론) · Supabase 동기화 & 웹 공유 링크 · 홈 위젯 · 주간/월간 Wrapped · 친구 팔로우.
 
 ## 10. 마일스톤
 
 1. **W1**: Expo prebuild 세팅, 토큰/네비게이션 뼈대, 정리 모드 스와이프 엔진 (프로토타입 스펙 이식) — 목데이터로 손맛부터 검증
 2. **W2**: MediaLibrary 스캔 파이프라인 + SQLite(휴지통 포함) + 세션 종료 시 일괄 삭제 플로우, DRM 분기
 3. **W3**: 보관함 메이슨리 + 휴지통 화면, Wrapped 요약, 공유 카드 캡처, 온보딩
+3-1. **W3-3**: 도그푸딩 계측(세션 기록 + 개발자 통계) · Direct Share 등록 · 클립보드 URL 병합 · 공유 카드
 4. **W4**: Android 버블 네이티브 모듈 (가장 리스키 — 실패 시 알림 기반으로 폴백), 내부 테스트
+   - **착수 조건**: W3-3 계측 2주치 데이터를 보고 판단. 미리 정해둔 스펙 — 재탭 병합(5분 내 같은 URL), 피드백 라벨, 하단으로 끌어 임시 숨김
+   - iOS 백탭/단축어 자동화는 Android 이후로 유지
 
 ## 11. Claude Code 착수 프롬프트 (복붙용)
 
