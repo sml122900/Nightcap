@@ -1,5 +1,8 @@
 import { Capture, CaptureKind, Verdict } from '../types/capture';
 
+/** Ingestion path a capture came in through (migration v6). 'bubble' is reserved for the W4 floating bubble. */
+export type IntakeSource = 'screenshot_scan' | 'share_image' | 'share_url' | 'bubble';
+
 /** Raw `captures` table row shape. DB-only fields never leak past the db layer. */
 export interface CaptureRow {
   id: string;
@@ -12,6 +15,9 @@ export interface CaptureRow {
   source_app: string | null;
   source_url: string | null;
   source_author: string | null;
+  /** how the row entered the app; NULL for rows predating the v6 backfill that couldn't be inferred */
+  intake_source: IntakeSource | null;
+  has_link: number;
   title: string | null;
   stars: number | null;
   verdict: 'rated' | 'hold' | 'drop' | null;

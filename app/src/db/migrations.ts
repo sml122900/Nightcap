@@ -91,6 +91,37 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    // Dogfooding instrumentation (W3-3): the four signals that decide whether W4 gets a floating
+    // bubble — session frequency / defer ratio / session duration / screenshot-vs-link mix.
+    // `intake_source` is backfilled only where the existing columns make it *certain* (asset_id ⇒
+    // scan, content_hash ⇒ shared image, source_url-without-either ⇒ shared link); anything else
+    // (mock-seeded rows) stays NULL rather than being guessed at — a guessed value would silently
+    // pollute the exact ratio this migration exists to measure.
+    version: 6,
+    sql: `
+      ALTER TABLE captures ADD COLUMN intake_source TEXT;
+      ALTER TABLE captures ADD COLUMN has_link INTEGER NOT NULL DEFAULT 0;
+
+      UPDATE captures SET has_link = 1 WHERE source_url IS NOT NULL;
+      UPDATE captures SET intake_source = 'screenshot_scan' WHERE asset_id IS NOT NULL;
+      UPDATE captures SET intake_source = 'share_image' WHERE asset_id IS NULL AND content_hash IS NOT NULL;
+      UPDATE captures SET intake_source = 'share_url'
+        WHERE asset_id IS NULL AND content_hash IS NULL AND source_url IS NOT NULL;
+
+      CREATE TABLE triage_sessions (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at  INTEGER NOT NULL,
+        ended_at    INTEGER,
+        completed   INTEGER NOT NULL DEFAULT 0,
+        total_cards INTEGER NOT NULL DEFAULT 0,
+        kept        INTEGER NOT NULL DEFAULT 0,
+        deferred    INTEGER NOT NULL DEFAULT 0,
+        deleted     INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX idx_triage_sessions_started ON triage_sessions(started_at);
+    `,
+  },
 ];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
