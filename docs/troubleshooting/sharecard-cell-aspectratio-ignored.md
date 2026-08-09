@@ -1,0 +1,77 @@
+# 공유 카드 그리드 셀이 `aspectRatio`를 무시하고 납작하게 렌더되는 문제
+
+> 원인까지 특정했고 수정은 아직 적용하지 않았다. 공유 카드는 대외 출력물이라 레이아웃 변경 폭을
+> 먼저 보고하고 결정을 받기로 했다.
+
+## 문제상황
+
+`ShareCardScreen`의 그리드 셀은 세로로 긴 포스터 격자를 의도했다:
+
+```ts
+cell: {
+  width: `${100 / GRID_COLUMNS - 2.5}%`,   // 3열
+  aspectRatio: 0.72,                        // RN에서 width/height → 세로가 김
+  padding: t.space.sm,
+  ...
+}
+```
+
+그런데 실기기 실측은 **263×204px, w/h = 1.29**였다. 0.72가 먹었다면 높이가 366px여야 한다.
+결과적으로 공유 카드가 "세로 포스터 격자"가 아니라 "가로 썸네일 나열"로 나간다.
+
+1.29가 유튜브 `hqdefault` 썸네일 비율(4:3 ≈ 1.33)에 가까워 "이미지가 높이를 정하는 것"으로 의심했지만,
+`CoverImage`는 `StyleSheet.absoluteFill`로 들어가고 별점 배지도 `position: 'absolute'`라 셀에는
+in-flow 자식이 하나도 없다 — 이미지가 높이를 만들 수는 없는 구조였다.
+
+## 시도한 것들
+
+- 셀에 `flex`/`height`/`maxHeight`가 같이 걸려 있는지 확인 → 없음. `width` + `aspectRatio`뿐
+- `CoverImage`의 세로/가로 크롭 분기가 높이를 강제하는지 확인 → 절대배치라 부모 높이에 기여 불가
+- `aspectRatio`가 붙은 노드와 실측된 노드가 같은지 확인 → `uiautomator dump`에서 같은 bounds가
+  셀/이미지 컨테이너/이미지로 3중 중첩돼 나오고, 366px짜리 노드는 어디에도 없었다. 셀 자체가 204px
+- 남은 용의자는 부모(`grid`)의 정렬. `flexDirection: 'row'` + `flexWrap: 'wrap'`인데 `alignItems`가
+  없어 기본값 `stretch`가 적용된다
+
+## 최종 원인
+
+**`grid`의 `alignItems` 기본값 `stretch`가 `aspectRatio`로 파생된 높이를 덮어쓴다.**
+
+Yoga는 `aspectRatio`로 계산된 cross size를 "명시된(definite) 값"으로 취급하지 않아서,
+`align-items: stretch`가 이기고 셀 높이가 라인 cross size로 늘어난다(여기서는 줄어든다).
+
+probe로 확정했다. `grid`에 `alignItems: 'flex-start'` 한 줄만 추가하고 릴리즈 빌드 후 재측정:
+
+| | 셀 크기 | w/h |
+|---|---|---|
+| 수정 전 | 263×204px | 1.29 |
+| `alignItems: 'flex-start'` | **263×366px** | **0.72** |
+
+스펙 값과 정확히 일치한다. 측정 후 probe는 되돌렸다.
+
+## 수정안과 영향 범위
+
+```diff
+  grid: {
+    marginTop: t.space.xl - 4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
++   alignItems: 'flex-start',
+    gap: t.space.sm,
+  },
+```
+
+한 줄이고 셀 스타일은 건드리지 않는다. 대신 **출력물 크기가 눈에 띄게 변한다**:
+
+- 셀 높이 204 → 366px (**+162px, +79%**)
+- 카드 2행 기준 그리드 높이 +324px ≈ **+123dp**
+- 별점 4~6장이면 2행, 7~9장이면 3행이라 3행일 때는 +486px
+
+즉 공유 카드 PNG가 지금보다 세로로 상당히 길어진다. 카피·푸터 위치는 그대로고 그리드만 커진다.
+`aspectRatio: 0.72`가 여전히 원하는 값인지(= 포스터 격자가 맞는지) 확인이 필요한 이유다 —
+값 자체를 조정할 거라면 이 한 줄과 함께 정하는 편이 빌드 한 번으로 끝난다.
+
+## 이력서 소재 한 줄
+
+지정한 `aspectRatio`가 렌더에 반영되지 않는 현상을, 자식(이미지) 쪽이 아니라 **부모 flex 컨테이너의
+`align-items: stretch` 기본값이 aspect 파생 높이를 덮어쓴다**는 Yoga 동작으로 특정하고,
+실기기 `uiautomator` 실측 전후 비교(204px → 366px, w/h 1.29 → 0.72)로 원인을 확정했다.

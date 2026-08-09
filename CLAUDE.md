@@ -40,8 +40,9 @@
 
 **미해결 결함 (2026-08-09 실기기 검증에서 발견, 전부 이번 리페인트 이전 코드)**
 - ~~[높음] 자동수집 ON + 사진 권한 없음 → 정리 모드 전체 차단~~ **해소(2026-08-09)** — 정리 모드 진입에서 사진 권한 게이트를 제거하고 판단을 `scanNewScreenshots` 한 곳으로 모았다(`aad4a31`). 토글도 실제 허가 결과를 따르도록 `setAutoScanRequested`/`syncAutoScanWithPermission`으로 통일(`98d4a1c`). "자동수집 ON인데 권한 없음" 안내 배너 + 시스템 설정 딥링크는 신규 UI라 별도 판단 대상으로 남겨뒀고, 그래서 `MediaAccessDeniedScreen`은 참조 0인 채로 보존돼 있다
-- **[중] 헤더 고스트 버튼("닫기"/"설정"/"공유")이 24.4×19.8dp** — `hitSlop={8}` 포함해도 40×36dp로 44dp 미달. 이번 터치 타겟 정리에서 헤더만 빠뜨렸다
-- **[중] 공유 카드 그리드 셀이 `aspectRatio: 0.72`(세로형) 지정인데 실측 1.29(가로형)** — 지정 비율이 먹지 않는다. 원인 미상, W3-3부터의 동작
+- ~~[중] 헤더 고스트 버튼 44dp 미달~~ **해소(2026-08-09)** — `components/common/HeaderButton.tsx`로 통일하고 진짜 44×44 박스를 줬다(`add2a9d`). 실측 44.2×43.8dp
+- **[중] 공유 카드 그리드 셀이 `aspectRatio: 0.72`(세로형) 지정인데 실측 1.29(가로형)** — **원인 확정**: `grid`의 `alignItems` 기본값 `stretch`가 aspect 파생 높이를 덮어쓴다. 수정은 `alignItems: 'flex-start'` 한 줄이지만 셀 높이가 204→366px(+79%)로 출력물이 세로로 길어져 스펙 재확인 대기 중. 근거·실측은 `docs/troubleshooting/sharecard-cell-aspectratio-ignored.md`
+- **[높음] Android 15 limited 접근에서 자동수집이 조용히 무력화** — 토글 ON·배너 노출인데 새 스크린샷 감지는 0장(실측 확인). 3상태 판별은 이미 가능(`accessPrivileges`). UX 선택지와 의견은 `docs/decisions/android15-limited-media-access.md`, 결정 대기
 - 상세는 `docs/verification-checklist.md` "실행 기록" 참고
 
 **알려진 제약**
@@ -192,7 +193,8 @@ SQLite 스키마 변경은 `PRAGMA user_version` 마이그레이션 러너(`app/
 - Nightcap의 Metro는 항상 8081 포트만 쓴다 — 포트 충돌 시(위 좀비 Metro 사례처럼 다른 프로젝트가 8081을 점유) `expo start`가 제안하는 대체 포트(8082 등)로 넘어가지 말고, 점유 프로세스를 확인해서 정리한 뒤 8081을 그대로 쓴다. 기기 쪽 `adb reverse tcp:8081 tcp:8081`과 맞춰야 하므로 포트를 바꾸면 기기 연결이 깨진다.
 - 새 Bash 셸엔 `JAVA_HOME`/`ANDROID_HOME`이 비어있을 수 있다 — 네이티브 리빌드 전 매번 확인.
 - 목데이터(`MOCK_CAPTURES`) 행은 `asset_id`/`image_uri`가 비어 있어 사진첩 삭제 대상이 되지 않는다. 단, 스캔으로 들어온 실제 캡처에 대해서는 **세션 종료 시 사진첩 원본 일괄 삭제가 실제로 동작하는 것을 2026-08-09에 실기기로 확인**했다(삭제 판정 → Done 도달 → OS의 "이 사진을 삭제하도록 허용하시겠습니까?" 동의 다이얼로그 → 허용 시 `Pictures/Screenshots`에서 파일이 사라짐). Android 11+는 앱이 소유하지 않은 미디어 삭제에 사용자 동의를 강제하므로 이 다이얼로그는 정상 절차다.
-- Android 15에서 `MediaLibrary.requestPermissionsAsync`는 클래식 권한 다이얼로그가 아니라 **사진 선택기(`PhotopickerUserSelectActivity`)** 를 띄울 수 있고, 아무것도 고르지 않고 취소해도 `READ_MEDIA_VISUAL_USER_SELECTED`가 부여되어 `granted=true`(`accessPrivileges: 'limited'`)로 돌아온다. 즉 "사용자가 거부한 상태"를 UI로 재현하기 어렵다 — 테스트할 땐 `adb shell pm revoke <pkg> android.permission.READ_MEDIA_IMAGES`와 `...READ_MEDIA_VISUAL_USER_SELECTED`를 **둘 다** 회수해야 한다. `READ_MEDIA_IMAGES`만 보고 "권한 없음"이라 판단하면 틀린다.
+- Android 15에서 `MediaLibrary.requestPermissionsAsync`는 클래식 권한 다이얼로그가 아니라 **사진 선택기(`PhotopickerUserSelectActivity`)** 를 띄울 수 있고, 아무것도 고르지 않고 취소해도 `READ_MEDIA_VISUAL_USER_SELECTED`가 부여되어 `granted=true`(`accessPrivileges: 'limited'`)로 돌아온다. 즉 "사용자가 거부한 상태"를 UI로 재현하기 어렵다 — 테스트할 땐 `adb shell pm revoke <pkg> android.permission.READ_MEDIA_IMAGES`와 `...READ_MEDIA_VISUAL_USER_SELECTED`를 **둘 다** 회수해야 한다. `READ_MEDIA_IMAGES`만 보고 "권한 없음"이라 판단하면 틀린다. 그리고 그 limited 상태에서는 **새로 찍은 스크린샷이 스캔에 절대 안 잡힌다**(사용자가 고른 자산 집합만 보이므로) — 실측 근거는 `docs/decisions/android15-limited-media-access.md`.
+- RN에서 `aspectRatio`로 정한 높이는 부모 flex 컨테이너의 `alignItems` 기본값 `stretch`에 덮어씌워진다(Yoga가 aspect 파생 cross size를 definite로 안 봄). 비율이 안 먹으면 자식이 아니라 **부모의 정렬**을 의심할 것 — `docs/troubleshooting/sharecard-cell-aspectratio-ignored.md`.
 - Android `FLAG_SECURE`(넷플릭스 등 DRM) 콘텐츠는 스크린샷 자체가 OS에서 차단돼 파일이 생성되지 않는다 — 스크린샷 스캔 경로로는 절대 유입 불가. DRM 분기는 스샷이 아닌 다른 캡처 경로(v2 Share Extension/공유시트)가 붙어야 실사용 가능해지고, 지금은 로직 검증용으로만 존재(검증 시 완전 검정 이미지를 전체화면으로 띄워 찍은 스샷으로 대체 테스트).
 - 서드파티 네이티브 모듈이 AGP 버전 조건부로 Kotlin/Java JVM 타깃 설정을 건너뛰어(dead code) 릴리즈 빌드가 실패할 수 있다 — `android/build.gradle`을 직접 고쳐도 `expo prebuild`가 매번 지우므로, 고정은 반드시 config plugin(`app/plugins/withKotlinJvmTargetFix.js`)으로. `docs/troubleshooting/kotlin-jvm-target-mismatch-release-build.md` 참고.
 - 릴리즈 빌드+설치가 다 끝났는데도 `expo run:android`가 응답 없이 멈춰 있으면, 로그가 없다고 바로 "멈췄다"고 판단하지 말고 데몬 CPU 사용률·APK 산출물 타임스탬프·기기 화면 잠금 상태부터 확인할 것 — 화면이 잠겨있으면 마지막 `am start` 단계에서 그냥 대기만 하고 있는 것일 수 있다. `docs/troubleshooting/adb-install-hang-locked-device.md` 참고.
