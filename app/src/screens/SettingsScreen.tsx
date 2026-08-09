@@ -8,7 +8,14 @@ import { HeaderButton, HeaderSpacer } from '../components/common/HeaderButton';
 import { useTheme, useThemeMode } from '../theme/ThemeProvider';
 import type { ThemeMode } from '../theme/tokens';
 import { getMetricsSummary, MetricsSummary } from '../services/metrics';
-import { setAutoScanRequested, syncAutoScanWithPermission } from '../services/screenshotScan';
+import {
+  AutoScanState,
+  MediaAccess,
+  presentAccessPicker,
+  setAutoScanRequested,
+  syncAutoScanWithPermission,
+} from '../services/screenshotScan';
+import { LimitedAccessNotice } from '../components/common/LimitedAccessNotice';
 
 /** Taps on the version label needed to reveal the dogfooding numbers in a release build. */
 const REVEAL_TAPS = 5;
@@ -40,18 +47,24 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const [autoScan, setAutoScan] = useState(false);
+  const [access, setAccess] = useState<MediaAccess>('none');
   // Dogfooding happens on a release build, so `__DEV__` alone would hide these numbers exactly
   // when they're being collected — the version label doubles as a hidden reveal (W3-3 A-3).
   const [revealed, setRevealed] = useState(__DEV__);
   const [taps, setTaps] = useState(0);
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
 
+  const applyState = (state: AutoScanState) => {
+    setAutoScan(state.enabled);
+    setAccess(state.access);
+  };
+
   // On entry, and again whenever the app comes back to the foreground — the user may have just
   // revoked access in the system settings, and the toggle must not keep claiming otherwise.
   useEffect(() => {
     const resync = () => {
       syncAutoScanWithPermission(db)
-        .then((state) => setAutoScan(state.enabled))
+        .then(applyState)
         .catch((err) => console.warn('[settings] auto-scan sync failed', err));
     };
     resync();
@@ -71,7 +84,13 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   const handleToggle = async (value: boolean) => {
     // Optimistic, then corrected by what was actually granted — turning it on can be denied.
     setAutoScan(value);
-    setAutoScan((await setAutoScanRequested(db, value)).enabled);
+    applyState(await setAutoScanRequested(db, value));
+  };
+
+  /** Re-opens the system picker. Only ever from a tap — never automatically. */
+  const handleRequestFullAccess = async () => {
+    await presentAccessPicker();
+    applyState(await syncAutoScanWithPermission(db));
   };
 
   const handleVersionTap = () => {
@@ -101,6 +120,11 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
             trackColor={{ false: theme.c.border, true: theme.c.accent }}
           />
         </View>
+
+        {/* `all`에서는 아예 렌더하지 않는다 — 정상 상태에 설명을 붙이면 그게 경고로 읽힌다. */}
+        {access === 'limited' ? (
+          <LimitedAccessNotice onRequestFullAccess={handleRequestFullAccess} style={styles.accessNotice} />
+        ) : null}
 
         <View style={styles.themeRow}>
           <Text style={styles.rowLabel}>화면 테마</Text>
@@ -215,6 +239,9 @@ const useStyles = makeStyles((t) => ({
     fontSize: 12.5,
     color: t.c.textTertiary,
     lineHeight: 18,
+  },
+  accessNotice: {
+    marginBottom: t.space.lg,
   },
   themeRow: {
     paddingVertical: t.space.lg,

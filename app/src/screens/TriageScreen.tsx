@@ -33,7 +33,7 @@ import {
 import { syncPendingAssetDeletes } from '../services/trash';
 import { getAutoScanEnabled } from '../services/settings';
 import { AccessibleControls } from '../components/triage/AccessibleControls';
-import { PartialAccessBanner } from '../components/triage/PartialAccessBanner';
+import { LimitedAccessNotice } from '../components/common/LimitedAccessNotice';
 import { TriageDeck, TriageDeckHandle } from '../components/triage/TriageDeck';
 import { DoneScreen } from './DoneScreen';
 import { Capture, TriageHistoryEntry, TriageSession, Verdict } from '../types/capture';
@@ -364,7 +364,7 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
       </View>
 
       {access === 'limited' ? (
-        <PartialAccessBanner onRequestFullAccess={handleRequestFullAccess} />
+        <LimitedAccessNotice onRequestFullAccess={handleRequestFullAccess} surface="cinema" style={styles.accessNotice} />
       ) : null}
 
       <View style={styles.deckWrap}>
@@ -401,6 +401,12 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
 }
 
 const useStyles = makeStyles((t) => ({
+  // The notice used to carry these margins itself; they belong to the host now that settings and
+  // onboarding render the same component in different layouts.
+  accessNotice: {
+    marginHorizontal: t.space.xl - 4,
+    marginTop: 10,
+  },
   screen: {
     flex: 1,
     backgroundColor: t.c.bg,
