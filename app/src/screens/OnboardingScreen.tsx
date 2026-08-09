@@ -118,7 +118,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             </View>
             {/* Android 15에서는 선택기를 취소해도 limited가 부여된다. 토글은 켜진 채 두고
                 (실제로 권한이 있다) 무엇이 안 되는지만 알린다 — 온보딩을 막지는 않는다. */}
-            {access === 'limited' ? (
+            {autoScan && access === 'limited' ? (
               <LimitedAccessNotice onRequestFullAccess={handleRequestFullAccess} style={styles.accessNotice} />
             ) : null}
           </>

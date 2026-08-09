@@ -122,7 +122,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
         </View>
 
         {/* `all`에서는 아예 렌더하지 않는다 — 정상 상태에 설명을 붙이면 그게 경고로 읽힌다. */}
-        {access === 'limited' ? (
+        {autoScan && access === 'limited' ? (
           <LimitedAccessNotice onRequestFullAccess={handleRequestFullAccess} style={styles.accessNotice} />
         ) : null}
 
