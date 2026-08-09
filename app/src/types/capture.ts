@@ -30,6 +30,8 @@ export interface TriageHistoryEntry {
   verdict: Verdict;
   /** rating 0.5–5.0, only set when verdict === 'rate' */
   stars?: number;
+  /** came from the ← '보류' swipe rather than rate mode — kept so an undo decrements the right metric */
+  quickHold?: boolean;
 }
 
 export interface TriageSession {

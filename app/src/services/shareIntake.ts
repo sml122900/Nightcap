@@ -27,8 +27,8 @@ async function ingestImageFile(db: SQLiteDatabase, file: ShareIntentFile): Promi
   const isDrm = await isLikelyDrm(destFile.uri);
 
   await db.runAsync(
-    `INSERT OR IGNORE INTO captures (id, created_at, image_uri, content_hash, is_drm, kind)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO captures (id, created_at, image_uri, content_hash, is_drm, kind, intake_source)
+     VALUES (?, ?, ?, ?, ?, ?, 'share_image')`,
     id,
     Date.now(),
     destFile.uri,
@@ -93,13 +93,14 @@ async function ingestUrlOrText(
   const title = metaTitle ?? textCandidate ?? url ?? text ?? '';
 
   await db.runAsync(
-    `INSERT INTO captures (id, created_at, source_app, source_url, title, kind)
-     VALUES (?, ?, ?, ?, ?, 'text')`,
+    `INSERT INTO captures (id, created_at, source_app, source_url, title, kind, intake_source, has_link)
+     VALUES (?, ?, ?, ?, ?, 'text', 'share_url', ?)`,
     id,
     Date.now(),
     sourceApp,
     url,
-    title
+    title,
+    url ? 1 : 0
   );
 
   if (url) {

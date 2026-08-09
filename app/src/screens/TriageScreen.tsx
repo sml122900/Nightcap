@@ -4,9 +4,16 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { tokens } from '../constants/tokens';
-import { applyVerdict, getTodayStack, undoVerdict } from '../db/queries';
+import { applyVerdict, getTodayStack, getTodayStackCount, undoVerdict } from '../db/queries';
 import { resetDemoData } from '../db/seed';
 import { enqueueWrite } from '../db/writeQueue';
+import {
+  addSessionCards,
+  bumpSessionCounter,
+  endTriageSession,
+  SessionCounter,
+  startTriageSession,
+} from '../services/metrics';
 import {
   getMediaAccessStatus,
   MediaAccessStatus,
@@ -25,6 +32,13 @@ import { fireVerdictHaptic } from '../utils/haptics';
 
 const EMPTY_SESSION: TriageSession = { rated: 0, sum: 0, drop: 0, apps: {} };
 const TOAST_DURATION = 1800;
+/** Backgrounded longer than this and the return counts as a new triage session, not a resumed one. */
+const SESSION_BACKGROUND_TIMEOUT_MS = 5 * 60 * 1000;
+
+function counterFor(verdict: Verdict, quickHold?: boolean): SessionCounter {
+  if (verdict === 'drop') return 'deleted';
+  return quickHold ? 'deferred' : 'kept';
+}
 
 function bumpApps(apps: Record<string, number>, app: string, delta: number) {
   const next = { ...apps, [app]: (apps[app] ?? 0) + delta };
@@ -57,6 +71,8 @@ export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
   const isRatingRef = useRef(isRating);
   const isDraggingRef = useRef(isDragging);
   const pendingMergeRef = useRef<(() => void) | null>(null);
+  const sessionIdRef = useRef<number | null>(null);
+  const backgroundedAtRef = useRef<number | null>(null);
 
   const loadStack = useCallback(async () => {
     const stack = await getTodayStack(db);
@@ -67,6 +83,31 @@ export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
   useEffect(() => {
     loadStack();
   }, [loadStack]);
+
+  /**
+   * Dogfooding instrumentation (W3-3 A-2): one row per visit to this screen. The unmount close is
+   * always `completed=false`; reaching the done screen writes `completed=1` first and
+   * `endTriageSession` won't overwrite an already-closed row, so a normal finish stays a finish.
+   */
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const id = await startTriageSession(db, await getTodayStackCount(db));
+        if (!mounted) {
+          endTriageSession(db, id, false);
+          return;
+        }
+        sessionIdRef.current = id;
+      } catch (err) {
+        console.warn('[triage] session start failed', err);
+      }
+    })();
+    return () => {
+      mounted = false;
+      if (sessionIdRef.current !== null) endTriageSession(db, sessionIdRef.current, false);
+    };
+  }, [db]);
 
   useEffect(() => {
     isRatingRef.current = isRating;
@@ -91,6 +132,7 @@ export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
         const newItems = fresh.filter((c) => !existingIds.has(c.id));
         if (newItems.length === 0) return q;
         setTotal((t) => t + newItems.length);
+        if (sessionIdRef.current !== null) addSessionCards(db, sessionIdRef.current, newItems.length);
         return [...q, ...newItems];
       });
     };
@@ -142,7 +184,25 @@ export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') return;
+      if (state !== 'active') {
+        backgroundedAtRef.current = Date.now();
+        return;
+      }
+      // Away long enough that this isn't the same sitting any more — close the old session as a
+      // drop-off and open a fresh one for whatever's still in the stack (W3-3 A-2).
+      const awayFor = backgroundedAtRef.current === null ? 0 : Date.now() - backgroundedAtRef.current;
+      backgroundedAtRef.current = null;
+      if (awayFor > SESSION_BACKGROUND_TIMEOUT_MS && sessionIdRef.current !== null) {
+        endTriageSession(db, sessionIdRef.current, false);
+        sessionIdRef.current = null;
+        (async () => {
+          try {
+            sessionIdRef.current = await startTriageSession(db, await getTodayStackCount(db));
+          } catch (err) {
+            console.warn('[triage] session restart failed', err);
+          }
+        })();
+      }
       (async () => {
         const enabled = await getAutoScanEnabled(db);
         if (!enabled) return;
@@ -180,15 +240,16 @@ export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
     toastTimer.current = setTimeout(() => setToastMsg(null), TOAST_DURATION);
   };
 
-  const handleCommit = (item: Capture, verdict: Verdict, stars?: number) => {
+  const handleCommit = (item: Capture, verdict: Verdict, stars?: number, quickHold?: boolean) => {
     fireVerdictHaptic(verdict);
+    if (sessionIdRef.current !== null) bumpSessionCounter(db, sessionIdRef.current, counterFor(verdict, quickHold), 1);
     // Serialized per-item (not just fire-and-forget) so a same-item undo issued right
     // after can't race ahead of this write and land first (see docs/troubleshooting).
     enqueueWrite(item.id, () => applyVerdict(db, item.id, verdict, stars)).catch((err) =>
       console.warn('[triage] applyVerdict failed', err)
     );
     setQueue((q) => (q ? q.slice(1) : q));
-    setHistory((h) => [...h, { item, verdict, stars }]);
+    setHistory((h) => [...h, { item, verdict, stars, quickHold }]);
     setSession((s) => ({
       rated: s.rated + (verdict === 'rate' ? 1 : 0),
       sum: s.sum + (verdict === 'rate' ? stars ?? 0 : 0),
@@ -208,6 +269,9 @@ export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
       return;
     }
     const last = history[history.length - 1];
+    if (sessionIdRef.current !== null) {
+      bumpSessionCounter(db, sessionIdRef.current, counterFor(last.verdict, last.quickHold), -1);
+    }
     enqueueWrite(last.item.id, () => undoVerdict(db, last.item.id)).catch((err) =>
       console.warn('[triage] undoVerdict failed', err)
     );
@@ -233,6 +297,7 @@ export function TriageScreen({ onOpenLibrary, onExit }: TriageScreenProps) {
   useEffect(() => {
     if (!isDone || syncedRef.current) return;
     syncedRef.current = true;
+    if (sessionIdRef.current !== null) endTriageSession(db, sessionIdRef.current, true);
     syncPendingAssetDeletes(db).catch((err) => console.warn('[triage] syncPendingAssetDeletes failed', err));
   }, [isDone, db]);
 

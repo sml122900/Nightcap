@@ -17,8 +17,12 @@ export interface TriageDeckHandle {
 
 interface TriageDeckProps {
   queue: Capture[];
-  /** commits the verdict to app state (queue/history/session) + fires haptics */
-  onCommit: (item: Capture, verdict: Verdict, stars?: number) => void;
+  /**
+   * commits the verdict to app state (queue/history/session) + fires haptics. `quickHold` marks
+   * the ← swipe's instant rate@2.5 so the metrics layer can still tell "보류" apart from a real
+   * rate-mode 2.5 — the two are otherwise identical verdicts (docs/decisions/hold-becomes-quick-rate.md).
+   */
+  onCommit: (item: Capture, verdict: Verdict, stars?: number, quickHold?: boolean) => void;
   /** → drag / 이전 button: undo the last verdict (owned by the screen's history stack) */
   onPrev: () => void;
   /** lets the screen disable other controls while the rate-mode modal is open */
@@ -62,7 +66,7 @@ export const TriageDeck = forwardRef<TriageDeckHandle, TriageDeckProps>(function
       // '보류'(← swipe) no longer defers to tomorrow — it commits an instant rate@2.5
       // so triage stays a single quick pass (docs/decisions/hold-becomes-quick-rate.md).
       if (action === 'hold') {
-        onCommit(item, 'rate', RATE_DEFAULT_VALUE);
+        onCommit(item, 'rate', RATE_DEFAULT_VALUE, true);
       } else {
         onCommit(item, action);
       }

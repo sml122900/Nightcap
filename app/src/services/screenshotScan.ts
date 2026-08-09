@@ -158,8 +158,8 @@ export async function scanNewScreenshots(db: SQLiteDatabase): Promise<void> {
         const isDrm = await isLikelyDrm(destFile.uri);
 
         await db.runAsync(
-          `INSERT OR IGNORE INTO captures (id, created_at, asset_id, image_uri, is_drm, kind)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT OR IGNORE INTO captures (id, created_at, asset_id, image_uri, is_drm, kind, intake_source)
+           VALUES (?, ?, ?, ?, ?, ?, 'screenshot_scan')`,
           meta.id,
           meta.creationTime,
           meta.id,
