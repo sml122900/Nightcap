@@ -4,7 +4,12 @@
 
 ## 진행상황
 
-**완료 (W1, W2, W3-1, W3-2, W3-3, 디자인 시스템/라이트 모드)**
+**완료 (W1, W2, W3-1, W3-2, W3-3, 디자인 시스템/라이트 모드, 검증 라운드 결함 4건)**
+- **실기기 검증 + 결함 4건 수정(2026-08-09~10)** — 릴리즈 빌드로 ①온보딩 ③테마를 전수 확인하고(`docs/verification-checklist.md` "실행 기록") 거기서 나온 결함을 지시서 단위로 수정했다.
+  - **사진 권한 경계 재정의** — 정리 모드 진입에서 권한 게이트를 제거하고 판단을 `scanNewScreenshots` 한 곳으로 모음. 토글은 `setAutoScanRequested`/`syncAutoScanWithPermission`으로 실제 허가 결과를 따라간다(마운트 + `AppState 'active'` 동기화, 정정 결과는 `meta`에 persist). 근거는 `docs/decisions/photo-permission-scope.md`. 권한 거부 사용자도 공유시트 경로로 코어 루프 전체를 쓸 수 있다
+  - **Android 14+ 3상태 접근** — `MediaAccess`(`all`/`limited`/`none`) 단일 타입. `limited`는 권한 있음으로 다뤄 토글을 막지 않고, `LimitedAccessNotice`(설정·온보딩·정리 공용)로 "새 스크린샷은 안 담긴다"를 알리고 `Linking.openSettings()`로 확장 경로를 준다. 근거·실측은 `docs/decisions/android15-limited-media-access.md`
+  - **헤더 터치 타겟** — `components/common/HeaderButton.tsx`로 7화면 8벌 통일, 음수 세로 마진으로 헤더 높이를 유지한 채 44×44 확보(실측 44.2×43.8dp)
+  - **공유 카드 셀 비율** — `grid`에 `alignItems: 'flex-start'`(부모 `stretch`가 aspect 파생 높이를 덮어쓰고 있었다). 상한 9→6장, 4장은 2열. `docs/troubleshooting/sharecard-cell-aspectratio-ignored.md`
 - **디자인 시스템 + 라이트 모드** — 스펙은 PROJECT.md §5(디자인 시스템) / §4(화면별 테마 배정), 설계 근거는 `docs/decisions/theme-surface-model.md`. 기능 변경 0의 순수 리페인트.
   - `app/src/theme/` 신설: `tokens.ts`(역할 기반 시맨틱 토큰 + dark/light/cinema 3팔레트 + space/radius/type/shadow/motion), `ThemeProvider.tsx`(`useTheme(surface?)`/`useCinema()`/`useThemeMode()`), `makeStyles.ts`(팔레트별 1회 생성·캐시하는 스타일 팩토리 훅), `SystemBars.tsx`(화면별 StatusBar + Android 내비바 버튼색), `colorClamp.ts`(+`colorClamp.test.ts`).
   - 구 `app/src/constants/tokens.ts`는 소비자 0이 되어 삭제. 색상 리터럴은 `theme/tokens.ts` 안에만 있다.
