@@ -70,10 +70,14 @@ export async function getLibrary(db: SQLiteDatabase, minStars?: number): Promise
 }
 
 export const SHARE_CARD_MIN_ITEMS = 4;
-const SHARE_CARD_MAX_ITEMS = 9;
+/**
+ * 3열 × 최대 2행. 셀이 세로형(aspectRatio 0.72)으로 제대로 렌더되면서 3행짜리 카드는 공유
+ * 이미지로 쓰기엔 지나치게 길어져 9장에서 낮췄다.
+ */
+const SHARE_CARD_MAX_ITEMS = 6;
 
 export interface ShareCardData {
-  /** 별점 상위 4~9장 — 이보다 적으면 카드 자체가 성립하지 않아 진입 버튼이 숨겨진다 */
+  /** 별점 상위 4~6장 — 이보다 적으면 카드 자체가 성립하지 않아 진입 버튼이 숨겨진다 */
   items: (Capture & { stars: number })[];
   total: number;
   avg: number;

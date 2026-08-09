@@ -41,7 +41,7 @@
 **미해결 결함 (2026-08-09 실기기 검증에서 발견, 전부 이번 리페인트 이전 코드)**
 - ~~[높음] 자동수집 ON + 사진 권한 없음 → 정리 모드 전체 차단~~ **해소(2026-08-09)** — 정리 모드 진입에서 사진 권한 게이트를 제거하고 판단을 `scanNewScreenshots` 한 곳으로 모았다(`aad4a31`). 토글도 실제 허가 결과를 따르도록 `setAutoScanRequested`/`syncAutoScanWithPermission`으로 통일(`98d4a1c`). "자동수집 ON인데 권한 없음" 안내 배너 + 시스템 설정 딥링크는 신규 UI라 별도 판단 대상으로 남겨뒀고, 그래서 `MediaAccessDeniedScreen`은 참조 0인 채로 보존돼 있다
 - ~~[중] 헤더 고스트 버튼 44dp 미달~~ **해소(2026-08-09)** — `components/common/HeaderButton.tsx`로 통일하고 진짜 44×44 박스를 줬다(`add2a9d`). 실측 44.2×43.8dp
-- **[중] 공유 카드 그리드 셀이 `aspectRatio: 0.72`(세로형) 지정인데 실측 1.29(가로형)** — **원인 확정**: `grid`의 `alignItems` 기본값 `stretch`가 aspect 파생 높이를 덮어쓴다. 수정은 `alignItems: 'flex-start'` 한 줄이지만 셀 높이가 204→366px(+79%)로 출력물이 세로로 길어져 스펙 재확인 대기 중. 근거·실측은 `docs/troubleshooting/sharecard-cell-aspectratio-ignored.md`
+- ~~[중] 공유 카드 그리드 셀 비율 미적용~~ **해소(2026-08-09)** — `grid`에 `alignItems: 'flex-start'`를 넣어 0.72가 실제로 적용되게 하고, 세로형 셀에서 3행이 너무 길어져 상한을 9→6장으로 낮췄다. 4장은 2열(2×2)로 갈라 빈 칸을 없앴다. 실측·근거는 `docs/troubleshooting/sharecard-cell-aspectratio-ignored.md`, 스펙은 PROJECT.md §4
 - **[높음] Android 15 limited 접근에서 자동수집이 조용히 무력화** — 토글 ON·배너 노출인데 새 스크린샷 감지는 0장(실측 확인). 3상태 판별은 이미 가능(`accessPrivileges`). UX 선택지와 의견은 `docs/decisions/android15-limited-media-access.md`, 결정 대기
 - 상세는 `docs/verification-checklist.md` "실행 기록" 참고
 

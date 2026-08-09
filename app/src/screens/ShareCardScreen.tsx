@@ -13,6 +13,13 @@ import { CoverImage } from '../components/common/CoverImage';
 import { StarRating } from '../components/common/StarRating';
 
 const GRID_COLUMNS = 3;
+/** 4장을 3열에 깔면 둘째 행에 빈 칸이 하나 남는다 — 2열로 떨어뜨려야 격자가 채워진다. */
+const GRID_COLUMNS_WHEN_FOUR = 2;
+
+/** gap을 감안해 100/n보다 좁게 잡아야 줄바꿈이 안 깨진다. */
+function cellWidthPercent(columns: number): `${number}%` {
+  return `${100 / columns - 2.5}%`;
+}
 
 interface ShareCardScreenProps {
   onBack: () => void;
@@ -47,6 +54,8 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
   const cardRef = useRef<View>(null);
   const [data, setData] = useState<ShareCardData | null>(null);
   const [sharing, setSharing] = useState(false);
+  const items = data?.items ?? [];
+  const cellWidth = cellWidthPercent(items.length === 4 ? GRID_COLUMNS_WHEN_FOUR : GRID_COLUMNS);
 
   useEffect(() => {
     getShareCardData(db)
@@ -83,8 +92,8 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
           <Text style={card.headline}>알고리즘이 고른 게 아니라{'\n'}내가 고른 것들</Text>
 
           <View style={card.grid}>
-            {(data?.items ?? []).map((item) => (
-              <View key={item.id} style={card.cell}>
+            {items.map((item) => (
+              <View key={item.id} style={[card.cell, { width: cellWidth }]}>
                 {item.imageUri ? (
                   <CoverImage
                     uri={item.imageUri}
@@ -200,11 +209,14 @@ const useCardStyles = makeStyles((t) => ({
     marginTop: t.space.xl - 4,
     flexDirection: 'row',
     flexWrap: 'wrap',
+    // 없으면 기본값 stretch가 셀의 aspectRatio 파생 높이를 덮어써 격자가 납작해진다
+    // (docs/troubleshooting/sharecard-cell-aspectratio-ignored.md). 마지막 행이 덜 찼을 때
+    // 남는 칸을 늘려 채우지 않는 효과도 같이 얻는다.
+    alignItems: 'flex-start',
     gap: t.space.sm,
   },
   cell: {
-    // 3열 + gap 8을 함께 쓰므로 100/3이 아니라 여백을 뺀 폭이어야 줄바꿈이 안 깨진다.
-    width: `${100 / GRID_COLUMNS - 2.5}%`,
+    // 폭은 장수에 따라 열 수가 달라져 호출부에서 주입한다.
     aspectRatio: 0.72,
     borderRadius: t.radius.card,
     backgroundColor: t.c.surfaceRaised,
