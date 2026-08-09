@@ -129,3 +129,49 @@ limited 상태에서 "전체 허용"을 눌러도 아무 화면도 뜨지 않았
 → 설정 화면의 "전체 허용"을 눌러 선택기가 뜨는지. 안 뜨면 이 액션은 실사용에서도 막다른 길이고,
 그때는 `Linking.openSettings()` 폴백을 붙이는 게 맞다(앱 정보 화면에서 권한을 직접 바꿀 수 있다).
 새 의존성은 필요 없다 — `expo-linking`은 이미 들어와 있다.
+
+---
+
+## 후속: "전체 허용" 액션을 `Linking.openSettings()`로 교체 (2026-08-10)
+
+위에서 미검증으로 남긴 no-op의 원인을 네이티브 코드에서 찾았다.
+
+```kotlin
+// expo-media-library/android/.../permissions/SystemPermissionsDelegate.kt
+fun presentPermissionsPicker(permissions: ..., promise: Promise) {
+  if (Build.VERSION.SDK_INT < 34) { throw ... }
+  requestPermissions(writeOnly = false, permissions = pickerPermissions, promise = promise)
+}
+```
+
+**Android에서 `presentPermissionsPicker`는 별도의 "사진 재선택" 모달이 아니다 — 그냥 권한 재요청이다.**
+그래서 사용자가 한 번 선택을 내린 뒤(`USER_SET`)에는 OS가 아무것도 띄우지 않고 조용히 끝난다.
+`USER_FIXED`가 아니어도 그렇다. 즉 이 API는 **도움이 필요한 바로 그 상태에서 아무 일도 하지 않는다.**
+
+### 두 안 중 `Linking.openSettings()` 단일화를 골랐다
+
+지시서가 제시한 다른 안은 "호출 후 400ms 뒤 상태를 재확인해 그대로면 폴백"이었다. 고르지 않은 이유:
+
+1. **판별 신호가 없다.** 선택기가 떴는지는 권한 상태로 알 수 없다(뜬 것만으로는 아무것도 안 바뀐다).
+   `AppState`로 대신 볼 수는 있지만 타이밍에 기대는 추정이다.
+2. **오탐의 결과가 더 나쁘다.** 느린 기기에서 400ms 안에 화면이 안 올라오면, 이미 열린 선택기 위에
+   시스템 설정이 겹쳐 뜬다. 탭 몇 번 더 하는 것보다 나쁜 실패다.
+3. Android에서 선택기 경로가 제공하는 고유 능력이 없다(위 코드대로 권한 재요청과 동일하다).
+   즉 잃는 것이 사실상 없다.
+
+버튼 문구는 "전체 허용" 그대로 뒀다 — 목적지가 달라도 목적은 같고, 사용자가 문구로 목적지를
+예측할 필요는 없다.
+
+`presentAccessPicker` 래퍼는 소비자가 0이 되어 삭제하고, 자리에 이유를 주석으로 남겼다.
+
+### 검증 (릴리즈 빌드)
+
+| 항목 | 결과 |
+|---|---|
+| limited에서 "전체 허용" 탭 | **시스템 설정 앱 정보 화면이 열림**(`InstalledAppDetails`) |
+| 전체 허용으로 바꾸고 앱 복귀 | 안내 사라짐, 토글 ON 유지 |
+| 같은 상태에서 새 스크린샷 | 스택에 유입됨(1/1 → 1/2) |
+| all에서 안내 미노출 | 통과 |
+
+온보딩에도 `AppState` 재동기화를 붙였다 — 시스템 설정에 다녀와도 안내가 갱신되어야 하는데
+그 화면에는 리스너가 없었다.

@@ -77,10 +77,11 @@ export async function syncAutoScanWithPermission(db: SQLiteDatabase): Promise<Au
   return { enabled: false, access };
 }
 
-/** Android 14+/iOS: re-opens the system picker so a "limited" grant can be widened to "all". */
-export async function presentAccessPicker(): Promise<void> {
-  await MediaLibrary.presentPermissionsPicker();
-}
+// `presentAccessPicker` (MediaLibrary.presentPermissionsPicker) used to live here as the way to
+// widen `limited` → `all`. Removed: on Android the native side just calls `requestPermissions()`
+// again, which shows nothing once the user has made any choice, so the button it powered was a
+// silent no-op exactly when it was needed. `LimitedAccessNotice` opens the app's system settings
+// instead — see that file and docs/decisions/android15-limited-media-access.md.
 
 /**
  * Screenshots album first (works on both platforms for the common case), falling back to a

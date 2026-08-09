@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { AppState, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -9,7 +9,6 @@ import { useTheme } from '../theme/ThemeProvider';
 import {
   AutoScanState,
   MediaAccess,
-  presentAccessPicker,
   setAutoScanRequested,
   syncAutoScanWithPermission,
 } from '../services/screenshotScan';
@@ -37,6 +36,19 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     setAccess(state.access);
   };
 
+  // The notice's action leaves for the system settings, so the state has to be re-read on return —
+  // otherwise it keeps saying "일부 사진만" after the user just granted everything.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      syncAutoScanWithPermission(db)
+        .then(applyState)
+        .catch((err) => console.warn('[onboarding] auto-scan sync failed', err));
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db]);
+
   const handleAutoScanToggle = async (value: boolean) => {
     // 거부면 토글이 다시 꺼진다 — 설정 화면과 같은 규칙. 어느 결과든 다음 장으로 넘어갈 수 있고,
     // 스캔은 허용되지 않았을 때 조용히 no-op한다.
@@ -44,11 +56,6 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     applyState(await setAutoScanRequested(db, value));
   };
 
-  /** Android 15에서는 선택기를 취소하면 limited가 된다 — 여기서 곧장 다시 열 수 있어야 한다. */
-  const handleRequestFullAccess = async () => {
-    await presentAccessPicker();
-    applyState(await syncAutoScanWithPermission(db));
-  };
 
   const handleFinish = async () => {
     await setOnboardingCompleted(db);
@@ -119,7 +126,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             {/* Android 15에서는 선택기를 취소해도 limited가 부여된다. 토글은 켜진 채 두고
                 (실제로 권한이 있다) 무엇이 안 되는지만 알린다 — 온보딩을 막지는 않는다. */}
             {autoScan && access === 'limited' ? (
-              <LimitedAccessNotice onRequestFullAccess={handleRequestFullAccess} style={styles.accessNotice} />
+              <LimitedAccessNotice style={styles.accessNotice} />
             ) : null}
           </>
         ) : null}

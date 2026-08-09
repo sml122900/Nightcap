@@ -27,7 +27,6 @@ import {
 import {
   getMediaAccess,
   MediaAccess,
-  presentAccessPicker,
   scanNewScreenshots,
 } from '../services/screenshotScan';
 import { syncPendingAssetDeletes } from '../services/trash';
@@ -232,13 +231,6 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
     return () => sub.remove();
   }, [runScanAndMerge, db]);
 
-  const handleRequestFullAccess = async () => {
-    await presentAccessPicker();
-    const current = await getMediaAccess();
-    setAccess(current);
-    if (current !== 'none') runScanAndMerge();
-  };
-
   /** DRM card title input (PROJECT.md §3.4/§5) — updates the live card immediately, persists async. */
   const handleTitleChange = (id: string, title: string) => {
     setQueue((q) => q?.map((c) => (c.id === id ? { ...c, title } : c)) ?? q);
@@ -364,7 +356,7 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
       </View>
 
       {access === 'limited' ? (
-        <LimitedAccessNotice onRequestFullAccess={handleRequestFullAccess} surface="cinema" style={styles.accessNotice} />
+        <LimitedAccessNotice surface="cinema" style={styles.accessNotice} />
       ) : null}
 
       <View style={styles.deckWrap}>

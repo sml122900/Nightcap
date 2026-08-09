@@ -11,7 +11,6 @@ import { getMetricsSummary, MetricsSummary } from '../services/metrics';
 import {
   AutoScanState,
   MediaAccess,
-  presentAccessPicker,
   setAutoScanRequested,
   syncAutoScanWithPermission,
 } from '../services/screenshotScan';
@@ -87,11 +86,6 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
     applyState(await setAutoScanRequested(db, value));
   };
 
-  /** Re-opens the system picker. Only ever from a tap — never automatically. */
-  const handleRequestFullAccess = async () => {
-    await presentAccessPicker();
-    applyState(await syncAutoScanWithPermission(db));
-  };
 
   const handleVersionTap = () => {
     const next = taps + 1;
@@ -123,7 +117,7 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
 
         {/* `all`에서는 아예 렌더하지 않는다 — 정상 상태에 설명을 붙이면 그게 경고로 읽힌다. */}
         {autoScan && access === 'limited' ? (
-          <LimitedAccessNotice onRequestFullAccess={handleRequestFullAccess} style={styles.accessNotice} />
+          <LimitedAccessNotice style={styles.accessNotice} />
         ) : null}
 
         <View style={styles.themeRow}>

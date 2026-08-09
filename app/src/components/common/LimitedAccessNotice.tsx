@@ -1,11 +1,9 @@
 import React from 'react';
-import { Pressable, StyleProp, Text, View, ViewStyle } from 'react-native';
+import { Linking, Pressable, StyleProp, Text, View, ViewStyle } from 'react-native';
 import { makeStyles } from '../../theme/makeStyles';
 import type { Surface } from '../../theme/tokens';
 
 interface LimitedAccessNoticeProps {
-  /** Opens the system picker so the user can widen `limited` to `all`. Never called automatically. */
-  onRequestFullAccess: () => void;
   /** Margins differ per host: the triage banner is inset from the deck, settings sits in the list. */
   style?: StyleProp<ViewStyle>;
   surface?: Surface;
@@ -22,15 +20,26 @@ interface LimitedAccessNoticeProps {
  * Deliberately not `danger`-colored: `limited` is a legitimate choice the user made, not an error
  * state, and their picked photos really are being collected. `textSecondary` + one action.
  *
+ * The action opens the app's system settings rather than `MediaLibrary.presentPermissionsPicker()`.
+ * On Android that function is not a separate "re-pick photos" modal — the native side just calls
+ * `requestPermissions()` again (`SystemPermissionsDelegate.kt`), and once the user has made any
+ * choice the OS shows nothing at all. Measured: in `limited` it was a silent no-op even without the
+ * `USER_FIXED` flag. A button that sometimes does nothing is worse than one extra screen, and
+ * there is no signal to detect which case you're in, so this always goes somewhere.
+ *
+ * The label stays "전체 허용" either way — the destination differs, the goal doesn't.
+ *
+ * Hosts re-read the access state on `AppState` 'active' so the notice disappears on return.
+ *
  * Used by the triage deck, settings, and onboarding so the three can't drift apart.
  */
-export function LimitedAccessNotice({ onRequestFullAccess, style, surface = 'theme' }: LimitedAccessNoticeProps) {
+export function LimitedAccessNotice({ style, surface = 'theme' }: LimitedAccessNoticeProps) {
   const styles = useStyles(surface);
   return (
     <View style={[styles.notice, style]}>
       <Text style={styles.text}>일부 사진만 접근 중 · 새 스크린샷은 자동으로 담기지 않아요</Text>
       <Pressable
-        onPress={onRequestFullAccess}
+        onPress={() => Linking.openSettings()}
         style={styles.button}
         accessibilityRole="button"
         accessibilityLabel="사진 접근 전체 허용"
