@@ -4,6 +4,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { makeStyles } from '../theme/makeStyles';
 import { SystemBars } from '../theme/SystemBars';
+import { HeaderButton, HeaderSpacer } from '../components/common/HeaderButton';
 import { useTheme } from '../theme/ThemeProvider';
 import { applyVerdict } from '../db/queries';
 import { enqueueWrite } from '../db/writeQueue';
@@ -65,11 +66,9 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
     <SafeAreaView style={styles.screen} edges={['top']}>
       <SystemBars />
       <View style={styles.top}>
-        <Pressable onPress={onBack} hitSlop={8}>
-          <Text style={styles.ghostBtn}>닫기</Text>
-        </Pressable>
+        <HeaderButton label="닫기" onPress={onBack} />
         <Text style={styles.headerTitle}>상세</Text>
-        <View style={{ width: 34 }} />
+        <HeaderSpacer />
       </View>
 
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
@@ -170,11 +169,6 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  ghostBtn: {
-    color: t.c.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
   },
   headerTitle: {
     ...t.type.heading,

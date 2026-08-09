@@ -6,6 +6,7 @@ import { captureRef } from 'react-native-view-shot';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { makeStyles } from '../theme/makeStyles';
 import { SystemBars } from '../theme/SystemBars';
+import { HeaderButton, HeaderSpacer } from '../components/common/HeaderButton';
 import { useTheme } from '../theme/ThemeProvider';
 import { getShareCardData, ShareCardData } from '../db/queries';
 import { CoverImage } from '../components/common/CoverImage';
@@ -71,11 +72,9 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <SystemBars />
       <View style={styles.top}>
-        <Pressable onPress={onBack} hitSlop={8}>
-          <Text style={styles.ghostBtn}>닫기</Text>
-        </Pressable>
+        <HeaderButton label="닫기" onPress={onBack} />
         <Text style={styles.headerTitle}>공유 카드</Text>
-        <View style={{ width: 34 }} />
+        <HeaderSpacer />
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
@@ -143,11 +142,6 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  ghostBtn: {
-    color: t.c.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
   },
   headerTitle: {
     ...t.type.heading,

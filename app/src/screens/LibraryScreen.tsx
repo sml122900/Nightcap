@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { makeStyles } from '../theme/makeStyles';
 import { SystemBars } from '../theme/SystemBars';
 import { getLibrary, getRatedCount, getTrashCount, SHARE_CARD_MIN_ITEMS } from '../db/queries';
+import { HeaderButton, HeaderSpacer } from '../components/common/HeaderButton';
 import { LibraryTile } from '../components/library/LibraryTile';
 import { LibraryDetailScreen } from './LibraryDetailScreen';
 import { Capture } from '../types/capture';
@@ -80,16 +81,12 @@ export function LibraryScreen({ onBack, onOpenTrash, onOpenShareCard }: LibraryS
     <SafeAreaView style={styles.screen} edges={['top']}>
       <SystemBars />
       <View style={styles.top}>
-        <Pressable onPress={onBack} hitSlop={8}>
-          <Text style={styles.ghostBtn}>닫기</Text>
-        </Pressable>
+        <HeaderButton label="닫기" onPress={onBack} />
         <Text style={styles.title}>보관함</Text>
         {ratedCount >= SHARE_CARD_MIN_ITEMS ? (
-          <Pressable onPress={onOpenShareCard} hitSlop={8} accessibilityRole="button" accessibilityLabel="공유 카드">
-            <Text style={styles.ghostBtn}>공유</Text>
-          </Pressable>
+          <HeaderButton label="공유" onPress={onOpenShareCard} accessibilityLabel="공유 카드" side="right" />
         ) : (
-          <View style={{ width: 34 }} />
+          <HeaderSpacer />
         )}
       </View>
 
@@ -149,11 +146,6 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  ghostBtn: {
-    color: t.c.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
   },
   title: {
     ...t.type.heading,

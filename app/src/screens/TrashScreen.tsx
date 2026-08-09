@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { makeStyles } from '../theme/makeStyles';
 import { SystemBars } from '../theme/SystemBars';
+import { HeaderButton, HeaderSpacer } from '../components/common/HeaderButton';
 import { getTrash, restoreFromTrash } from '../db/queries';
 import { TrashTile } from '../components/trash/TrashTile';
 import { Capture } from '../types/capture';
@@ -35,11 +36,9 @@ export function TrashScreen({ onBack }: TrashScreenProps) {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <SystemBars />
       <View style={styles.top}>
-        <Pressable onPress={onBack} hitSlop={8}>
-          <Text style={styles.ghostBtn}>닫기</Text>
-        </Pressable>
+        <HeaderButton label="닫기" onPress={onBack} />
         <Text style={styles.title}>휴지통</Text>
-        <View style={{ width: 34 }} />
+        <HeaderSpacer />
       </View>
 
       {items.length === 0 ? (
@@ -72,11 +71,6 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  ghostBtn: {
-    color: t.c.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
   },
   title: {
     ...t.type.heading,

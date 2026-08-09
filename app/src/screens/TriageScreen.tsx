@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { makeStyles } from '../theme/makeStyles';
 import { SystemBars } from '../theme/SystemBars';
+import { HeaderButton, HeaderSpacer } from '../components/common/HeaderButton';
 import { useCinema } from '../theme/ThemeProvider';
 import {
   applyVerdict,
@@ -348,16 +349,14 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
     <SafeAreaView style={styles.screen} edges={['top']}>
       <SystemBars surface="cinema" />
       <View style={styles.top}>
-        <Pressable onPress={onExit} hitSlop={8}>
-          <Text style={styles.ghostBtn}>닫기</Text>
-        </Pressable>
+        <HeaderButton label="닫기" onPress={onExit} surface="cinema" />
         <Text style={styles.count}>
           <Text style={styles.countStrong}>{current}</Text> / {total}
         </Text>
         {scanning ? (
           <ActivityIndicator size="small" color={theme.c.textSecondary} />
         ) : (
-          <View style={{ width: 34 }} />
+          <HeaderSpacer />
         )}
       </View>
 
@@ -414,11 +413,6 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  ghostBtn: {
-    color: t.c.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
   },
   count: {
     fontSize: 14,

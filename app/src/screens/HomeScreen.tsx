@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { makeStyles } from '../theme/makeStyles';
 import { SystemBars } from '../theme/SystemBars';
+import { HeaderButton, HeaderSpacer } from '../components/common/HeaderButton';
 import { getTodayStackCount } from '../db/queries';
 
 const TOAST_DURATION = 1800;
@@ -55,11 +56,9 @@ export function HomeScreen({ onStartTriage, onOpenLibrary, onOpenSettings, share
     <SafeAreaView style={styles.screen} edges={['top']}>
       <SystemBars />
       <View style={styles.top}>
-        <View style={{ width: 34 }} />
+        <HeaderSpacer />
         <Text style={styles.brand}>nightcap</Text>
-        <Pressable onPress={onOpenSettings} hitSlop={8} accessibilityRole="button" accessibilityLabel="설정">
-          <Text style={styles.ghostBtn}>설정</Text>
-        </Pressable>
+        <HeaderButton label="설정" onPress={onOpenSettings} side="right" />
       </View>
 
       <View style={styles.body}>
@@ -113,11 +112,6 @@ const useStyles = makeStyles((t) => ({
     fontWeight: '800',
     letterSpacing: -0.2,
     color: t.c.textSecondary,
-  },
-  ghostBtn: {
-    color: t.c.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
   },
   body: {
     flex: 1,
