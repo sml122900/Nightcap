@@ -6,8 +6,8 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { makeStyles } from '../theme/makeStyles';
 import { SystemBars } from '../theme/SystemBars';
 import { useTheme } from '../theme/ThemeProvider';
-import { requestMediaAccess } from '../services/screenshotScan';
-import { setAutoScanEnabled, setOnboardingCompleted } from '../services/settings';
+import { setAutoScanRequested } from '../services/screenshotScan';
+import { setOnboardingCompleted } from '../services/settings';
 
 const PAGE_COUNT = 3;
 
@@ -25,9 +25,10 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const [autoScan, setAutoScan] = useState(false);
 
   const handleAutoScanToggle = async (value: boolean) => {
+    // Denying the permission has to turn the toggle back off — same rule as the settings screen.
+    // Either outcome continues to the next page; the scan just no-ops when it isn't allowed.
     setAutoScan(value);
-    if (value) await requestMediaAccess();
-    await setAutoScanEnabled(db, value);
+    setAutoScan(await setAutoScanRequested(db, value));
   };
 
   const handleFinish = async () => {

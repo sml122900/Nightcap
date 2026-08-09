@@ -4,6 +4,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 import { getColors } from 'react-native-image-colors';
 import { DRM_LUMINANCE_THRESHOLD } from '../constants/drm';
 import { mergeClipboardUrl } from './clipboardLink';
+import { getAutoScanEnabled, setAutoScanEnabled } from './settings';
 
 const CAPTURES_DIR_NAME = 'captures';
 const LAST_SCAN_KEY = 'last_scan_at';
@@ -23,6 +24,37 @@ export async function getMediaAccessStatus(): Promise<MediaAccessStatus> {
 
 export async function requestMediaAccess(): Promise<MediaAccessStatus> {
   return toAccessStatus(await MediaLibrary.requestPermissionsAsync(false, ['photo']));
+}
+
+/**
+ * Turning auto-scan on IS a request for photo access, so the stored flag has to follow what the
+ * user actually granted. Storing `true` after a denial makes the settings screen lie: the toggle
+ * reads "on" while the scan can never run.
+ *
+ * Returns the value that was persisted, which is what the caller should render.
+ */
+export async function setAutoScanRequested(db: SQLiteDatabase, wanted: boolean): Promise<boolean> {
+  if (!wanted) {
+    await setAutoScanEnabled(db, false);
+    return false;
+  }
+  const access = await requestMediaAccess();
+  await setAutoScanEnabled(db, access.granted);
+  return access.granted;
+}
+
+/**
+ * Access can be revoked from the system settings while the app is backgrounded, so the stored flag
+ * goes stale without the app ever being told. Re-checks and *persists* the correction — leaving it
+ * as screen-local state would let the next launch resurrect the stale `true`.
+ */
+export async function syncAutoScanWithPermission(db: SQLiteDatabase): Promise<boolean> {
+  const enabled = await getAutoScanEnabled(db);
+  if (!enabled) return false;
+  const access = await getMediaAccessStatus();
+  if (access.granted) return true;
+  await setAutoScanEnabled(db, false);
+  return false;
 }
 
 /** Android 14+/iOS: re-opens the system picker so a "limited" grant can be widened to "all". */

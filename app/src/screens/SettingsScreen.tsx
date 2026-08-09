@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { makeStyles } from '../theme/makeStyles';
@@ -7,7 +7,7 @@ import { SystemBars } from '../theme/SystemBars';
 import { useTheme, useThemeMode } from '../theme/ThemeProvider';
 import type { ThemeMode } from '../theme/tokens';
 import { getMetricsSummary, MetricsSummary } from '../services/metrics';
-import { getAutoScanEnabled, setAutoScanEnabled } from '../services/settings';
+import { setAutoScanRequested, syncAutoScanWithPermission } from '../services/screenshotScan';
 
 /** Taps on the version label needed to reveal the dogfooding numbers in a release build. */
 const REVEAL_TAPS = 5;
@@ -45,8 +45,19 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   const [taps, setTaps] = useState(0);
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
 
+  // On entry, and again whenever the app comes back to the foreground — the user may have just
+  // revoked access in the system settings, and the toggle must not keep claiming otherwise.
   useEffect(() => {
-    getAutoScanEnabled(db).then(setAutoScan);
+    const resync = () => {
+      syncAutoScanWithPermission(db)
+        .then(setAutoScan)
+        .catch((err) => console.warn('[settings] auto-scan sync failed', err));
+    };
+    resync();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') resync();
+    });
+    return () => sub.remove();
   }, [db]);
 
   useEffect(() => {
@@ -57,8 +68,9 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   }, [revealed, db]);
 
   const handleToggle = async (value: boolean) => {
+    // Optimistic, then corrected by what was actually granted — turning it on can be denied.
     setAutoScan(value);
-    await setAutoScanEnabled(db, value);
+    setAutoScan(await setAutoScanRequested(db, value));
   };
 
   const handleVersionTap = () => {
