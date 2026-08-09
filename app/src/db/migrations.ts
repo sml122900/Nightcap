@@ -122,6 +122,13 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX idx_triage_sessions_started ON triage_sessions(started_at);
     `,
   },
+  {
+    // Theme choice (dark/light/system). Seeded explicitly rather than left absent so existing
+    // installs stay dark — 'system' as an implicit default would silently flip anyone whose phone
+    // is in light mode. New installs land here too, and dark is the product's default (핸드오프 §1-1).
+    version: 7,
+    sql: `INSERT OR IGNORE INTO meta (key, value) VALUES ('theme_mode', 'dark');`,
+  },
 ];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {

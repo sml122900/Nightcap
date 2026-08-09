@@ -1,11 +1,11 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { BackHandler, StyleSheet, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { useShareIntent } from 'expo-share-intent';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { tokens } from './src/constants/tokens';
+import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
+import { palettes } from './src/theme/tokens';
 import { initDb } from './src/db/init';
 import { ingestShareIntent } from './src/services/shareIntake';
 import { getOnboardingCompleted } from './src/services/settings';
@@ -110,18 +110,30 @@ function RootNavigator() {
   );
 }
 
+/** Separate from RootNavigator only so the app-level background can read the resolved theme. */
+function ThemedRoot() {
+  const theme = useTheme();
+  return (
+    <View style={[styles.root, { backgroundColor: theme.c.bg }]}>
+      <RootNavigator />
+    </View>
+  );
+}
+
 export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <View style={styles.root}>
-          <Suspense fallback={<View style={styles.root} />}>
-            <SQLiteProvider databaseName="nightcap.db" onInit={initDb} useSuspense>
-              <RootNavigator />
-            </SQLiteProvider>
-          </Suspense>
-          <StatusBar style="light" />
-        </View>
+        {/* Pre-theme frames (suspense, DB open, mode read) paint dark: it's the default and the
+            overwhelmingly common case, so a light-mode user sees one dark frame rather than every
+            dark-mode user seeing a white flash. */}
+        <Suspense fallback={<View style={styles.preThemeRoot} />}>
+          <SQLiteProvider databaseName="nightcap.db" onInit={initDb} useSuspense>
+            <ThemeProvider>
+              <ThemedRoot />
+            </ThemeProvider>
+          </SQLiteProvider>
+        </Suspense>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -130,6 +142,9 @@ export default function App() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: tokens.bg,
+  },
+  preThemeRoot: {
+    flex: 1,
+    backgroundColor: palettes.dark.bg,
   },
 });

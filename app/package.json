@@ -11,6 +11,7 @@
     "expo-haptics": "~57.0.0",
     "expo-linking": "~57.0.1",
     "expo-media-library": "~57.0.1",
+    "expo-navigation-bar": "~57.0.2",
     "expo-share-intent": "^8.0.0",
     "expo-sharing": "~57.0.10",
     "expo-sqlite": "~57.0.0",
@@ -26,13 +27,15 @@
     "react-native-worklets": "0.10.0"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "test": "tsc --ignoreConfig src/theme/colorClamp.ts src/theme/colorClamp.test.ts --outDir .test-out --module node16 --target es2022 --strict --skipLibCheck --types node && node --test .test-out/colorClamp.test.js"
   },
   "private": true
 }

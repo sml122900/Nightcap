@@ -40,3 +40,6 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# tsc output for `npm test` (app/)
+/app/.test-out/

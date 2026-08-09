@@ -6,8 +6,8 @@
     "scheme": "nightcap",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#000000",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#0B0D12",
     "ios": {
       "supportsTablet": true
     },
@@ -46,6 +46,12 @@
             "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
             "NSExtensionActivationSupportsImageWithMaxCount": 1
           }
+        }
+      ],
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false
         }
       ],
       "./plugins/withKotlinJvmTargetFix.js",
