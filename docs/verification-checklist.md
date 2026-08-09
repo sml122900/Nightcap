@@ -28,11 +28,17 @@ APK에 박혀 있어 완전히 독립적이다. 릴리즈 서명은 `signingConf
 **릴리즈로 하면 안 되는 것**: `bg` 값 비교(아래 "보류 중인 결정")는 값 하나 바꿀 때마다 재빌드라
 릴리즈에 안 맞는다. 무선 ADB(`adb tcpip 5555`) + dev client로 따로 볼 것.
 
+**릴리즈에선 `run-as`가 막힌다**(`package not debuggable`). 즉 앱 샌드박스를 열어볼 수도, 아래
+백업을 되돌릴 수도 없다 — 복원이 필요하면 debug 빌드를 먼저 다시 깔아야 한다. 릴리즈 설치 여부는
+`adb shell dumpsys package com.anonymous.nightcap`의 `flags`에 `DEBUGGABLE`이 없는 것으로 확인된다.
+
 ---
 
 ## ① 온보딩 (가장 오래 밀림, 2026-07 W3-2부터)
 
 앱을 **완전 삭제**한 뒤 설치해야 `meta.onboarding_completed_at`이 비어 첫 실행 경로를 탄다.
+이미 한 번 실행해서 온보딩을 지나버렸다면 재설치까지 갈 것 없이 `adb shell pm clear
+com.anonymous.nightcap`으로 데이터만 지워도 된다(앱 데이터 전체가 날아가므로 아래 백업 주의).
 
 - [ ] 3장이 순서대로 뜨고 탭으로 넘어감
 - [ ] 3장 자동수집 토글 **허용** → 권한 다이얼로그 뜨고, 이후 진행됨
