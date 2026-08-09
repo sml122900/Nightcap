@@ -39,13 +39,15 @@
 - iOS 공유시트(Share Extension) 실기기 검증 — macOS/Xcode 환경이 없어 이번 라운드는 Android(`expo run:android`)만 실기기 확인, iOS는 `expo prebuild`까지만(네이티브 프로젝트 생성 확인) 하고 실행은 못 함
 
 **알려진 제약**
+- **밀린 실기기 검증은 `docs/verification-checklist.md`에 순서대로 정리돼 있다**(① 온보딩 → ② W3-3 → ③ 테마). ①이 실패하면 나머지가 무의미하므로 순서를 지킬 것
 - 라이트 모드는 실기기 육안 확인 전 — 코드상 대비는 맞췄지만(4.5:1 기준) 실제로 본 적은 없다. 시네마↔테마 경계(보관함 상세)와 Android 내비바 버튼색이 특히 확인 대상
-- 추출색 클램프(`theme/colorClamp.ts`)는 만들어뒀지만 **소비자가 없다** — 보관함 셀 틴트를 붙이는 건 기능 추가라 이번 리페인트 범위 밖으로 뒀다
+- `bg` 값(`#0B0D12` vs 순수 `#000000`)은 **미결**. OLED 배터리 + 스샷 명암비가 순수 검정 편이고, 층위 구분은 `surface`가 이미 하고 있어 `bg`만 내려도 위계가 안 무너진다. 반대급부는 스크롤 잔상 — 실기기 비교 후 결정한다. 시네마 `#08090C`도 같이. 그 전까지 코드 수정 금지
+- 추출색 클램프(`theme/colorClamp.ts`)는 만들어뒀지만 **소비자가 없다**. 원래 후보였던 보관함 셀 틴트는 무의미 — 셀에 커버가 꽉 차서 틴트가 안 보인다. 쓸 자리는 LibraryDetail 메타 영역 배경 하나(시네마↔테마 경계를 부드럽게 만드는 용도). 테스트 있는 순수 함수라 유지비 0이므로 남겨두고 백로그
 - 보관함은 여전히 고정 2열 그리드(진짜 메이슨리 아님) — 디자인 시스템 작업에서 건드리지 않았다
 - 별점 모드 손맛/접근성은 실기기 육안·TalkBack 확인이 아직 필요
-- 릴리즈 빌드는 실기기(Galaxy S24+)에 설치까지 확인됨. 다만 스캔/DRM/휴지통 등 실제 기능 동작은 PROJECT.md 체크리스트로 수동 검증 필요 — 공유시트 유입 경로(이미지/URL 공유)는 이번 라운드에 dev-client 빌드 후 실기기로 검증 예정(사용자 확인 필요, PROJECT.md §7 체크리스트)
+- 릴리즈 빌드는 실기기(Galaxy S24+)에 설치까지 확인됨. 다만 스캔/DRM/휴지통 등 실제 기능 동작은 `docs/verification-checklist.md`로 수동 검증 필요 — 공유시트 유입 경로(이미지/URL 공유)는 이번 라운드에 dev-client 빌드 후 실기기로 검증 예정(사용자 확인 필요, `docs/verification-checklist.md`)
 - 2026-08-09: W3-3 네이티브 리빌드(dev-client debug) + 설치까지 확인(`adb install` Success, `lastUpdateTime` 갱신, `dumpsys shortcut`에 share-target 등록). 지시대로 `am start`는 하지 않음 — 실제 기능(공유시트 상단 노출/클립보드 병합/공유 카드 이미지)은 실기기 수동 검증 필요
-- 2026-07-13: W3-2 반영분 릴리즈 재빌드+실행 확인 완료 — 빌드 성공(3m30s), `dumpsys package` `lastUpdateTime` + `dumpsys activity` `ResumedActivity=com.anonymous.nightcap/.MainActivity`로 설치·포그라운드 실행 모두 확인(`docs/troubleshooting/release-build-launch-confirmation-cut-off.md`의 미해결 항목 해소). 단, 이건 "앱이 켜진다"만 확인된 것 — 공유시트 유입 등 실제 기능 동작은 여전히 PROJECT.md §7 체크리스트로 수동 검증 필요
+- 2026-07-13: W3-2 반영분 릴리즈 재빌드+실행 확인 완료 — 빌드 성공(3m30s), `dumpsys package` `lastUpdateTime` + `dumpsys activity` `ResumedActivity=com.anonymous.nightcap/.MainActivity`로 설치·포그라운드 실행 모두 확인(`docs/troubleshooting/release-build-launch-confirmation-cut-off.md`의 미해결 항목 해소). 단, 이건 "앱이 켜진다"만 확인된 것 — 공유시트 유입 등 실제 기능 동작은 여전히 `docs/verification-checklist.md`로 수동 검증 필요
 - Android `FLAG_SECURE`(넷플릭스 등) 콘텐츠는 스크린샷 자체가 차단돼 스캔 경로로 DRM 카드가 실제로 만들어지는 일은 없음(지뢰 목록 참고) — 검증은 검정 이미지 스샷으로 대체
 
 ---
