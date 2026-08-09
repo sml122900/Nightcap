@@ -35,7 +35,6 @@ import { AccessibleControls } from '../components/triage/AccessibleControls';
 import { PartialAccessBanner } from '../components/triage/PartialAccessBanner';
 import { TriageDeck, TriageDeckHandle } from '../components/triage/TriageDeck';
 import { DoneScreen } from './DoneScreen';
-import { MediaAccessDeniedScreen } from './MediaAccessDeniedScreen';
 import { Capture, TriageHistoryEntry, TriageSession, Verdict } from '../types/capture';
 import { fireVerdictHaptic } from '../utils/haptics';
 
@@ -187,10 +186,13 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
     (async () => {
       const enabled = await getAutoScanEnabled(db);
       if (cancelled || !enabled) return;
+      // Read only to drive the partial-access banner. Whether the scan may run is decided inside
+      // `scanNewScreenshots`, which returns silently when access is denied — the deck itself no
+      // longer depends on photo permission at all.
       const access = await getMediaAccessStatus();
       if (cancelled) return;
       setAccessStatus(access);
-      if (access.granted) await runScanAndMerge();
+      await runScanAndMerge();
     })();
     return () => {
       cancelled = true;
@@ -224,7 +226,7 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
         if (!enabled) return;
         const access = await getMediaAccessStatus();
         setAccessStatus(access);
-        if (access.granted) await runScanAndMerge();
+        await runScanAndMerge();
       })();
     });
     return () => sub.remove();
@@ -325,10 +327,6 @@ export function TriageScreen({ onOpenLibrary, onExit, onOpenShareCard }: TriageS
     if (entries.length === 0) return null;
     return entries.sort((a, b) => b[1] - a[1])[0][0];
   }, [session.apps]);
-
-  if (accessStatus && !accessStatus.granted) {
-    return <MediaAccessDeniedScreen />;
-  }
 
   if (queue === null) {
     return <View style={styles.screen} />;
