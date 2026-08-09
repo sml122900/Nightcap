@@ -9,6 +9,7 @@ import { SystemBars } from '../theme/SystemBars';
 import { useTheme } from '../theme/ThemeProvider';
 import { getShareCardData, ShareCardData } from '../db/queries';
 import { CoverImage } from '../components/common/CoverImage';
+import { StarRating } from '../components/common/StarRating';
 
 const GRID_COLUMNS = 3;
 
@@ -97,7 +98,7 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
                   </Text>
                 )}
                 <View style={card.starBadge}>
-                  <Text style={card.starBadgeText}>★ {item.stars.toFixed(1)}</Text>
+                  <StarRating value={item.stars} size="md" surface="dark" />
                 </View>
               </View>
             ))}
@@ -233,12 +234,6 @@ const useCardStyles = makeStyles((t) => ({
     paddingVertical: 3,
     borderRadius: 7,
     backgroundColor: t.c.imageScrim,
-  },
-  starBadgeText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: t.c.accent,
-    fontVariant: ['tabular-nums'],
   },
   footer: {
     marginTop: t.space.xl - 4,

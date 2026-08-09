@@ -4,6 +4,7 @@ import { makeStyles } from '../../theme/makeStyles';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Capture } from '../../types/capture';
 import { CoverImage } from '../common/CoverImage';
+import { StarRating } from '../common/StarRating';
 
 interface LibraryTileProps {
   item: Capture & { stars: number };
@@ -39,7 +40,7 @@ export function LibraryTile({ item, onPress }: LibraryTileProps) {
           </Text>
         )}
         <View style={badge.starBadge}>
-          <Text style={badge.starBadgeText}>★{item.stars.toFixed(1)}</Text>
+          <StarRating value={item.stars} />
         </View>
       </View>
       <View style={styles.meta}>
@@ -128,11 +129,5 @@ const useBadgeStyles = makeStyles((t) => ({
     borderRadius: t.radius.chip,
     paddingHorizontal: t.space.sm,
     paddingVertical: t.space.xs,
-  },
-  starBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: t.c.accent,
-    fontVariant: ['tabular-nums'],
   },
 }));

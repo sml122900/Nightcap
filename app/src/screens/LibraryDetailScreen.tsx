@@ -8,6 +8,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { applyVerdict } from '../db/queries';
 import { enqueueWrite } from '../db/writeQueue';
 import { unlinkCapture } from '../services/clipboardLink';
+import { StarRating } from '../components/common/StarRating';
 import { RateModeLayer } from '../components/triage/RateModeLayer';
 import { Capture } from '../types/capture';
 
@@ -112,7 +113,7 @@ export function LibraryDetailScreen({ item, onBack }: LibraryDetailScreenProps) 
             accessibilityRole="button"
             accessibilityLabel="별점 수정"
           >
-            <Text style={styles.starValue}>★ {stars.toFixed(1)}</Text>
+            <StarRating value={stars} size="lg" surface="theme" />
             <Text style={styles.starEdit}>별점 수정</Text>
           </Pressable>
 
@@ -212,12 +213,6 @@ const useStyles = makeStyles((t) => ({
     alignItems: 'center',
     justifyContent: 'space-between',
     ...t.shadow.card,
-  },
-  starValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: t.c.accent,
-    fontVariant: ['tabular-nums'],
   },
   starEdit: {
     ...t.type.meta,
