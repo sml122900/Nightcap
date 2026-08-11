@@ -98,7 +98,18 @@ export async function mergeClipboardUrl(db: SQLiteDatabase, captureId: string): 
   }
 }
 
-/** LibraryDetail's "링크 해제" — a wrongly attached link the user can't remove makes the whole feature untrustworthy. */
+/**
+ * LibraryDetail's "링크 해제" — a wrongly attached link the user can't remove makes the whole
+ * feature untrustworthy. Also clears `source_app`/`source_author`: both are only ever written by
+ * URL-derived enrichment (here and shareIntake.ts's `enrichLinkCapture`), never by the user, so
+ * leaving them behind after unlinking would strand the gray "유튜브 · ..." source line with
+ * nothing backing it. `title` is deliberately left alone — it can legitimately be user-typed
+ * (LibraryDetail/TriageScreen's title field), and the schema has no way to tell that apart from
+ * a metadata-filled one, so clearing it risks erasing text the user wrote themselves.
+ */
 export async function unlinkCapture(db: SQLiteDatabase, captureId: string): Promise<void> {
-  await db.runAsync(`UPDATE captures SET source_url = NULL, has_link = 0 WHERE id = ?`, captureId);
+  await db.runAsync(
+    `UPDATE captures SET source_url = NULL, has_link = 0, source_app = NULL, source_author = NULL WHERE id = ?`,
+    captureId
+  );
 }
