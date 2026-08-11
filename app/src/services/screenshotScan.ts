@@ -84,6 +84,22 @@ export async function syncAutoScanWithPermission(db: SQLiteDatabase): Promise<Au
 // instead — see that file and docs/decisions/android15-limited-media-access.md.
 
 /**
+ * `orderBy(CREATION_TIME)` asks the native query for ascending order, but two screenshots taken
+ * a second or two apart can round to the same stored timestamp, and MediaStore doesn't guarantee
+ * a stable tie-break — ties have been observed coming back newest-first. mergeClipboardUrl (below)
+ * always attaches the clipboard to the *first* new row of a batch, so a tie-break that isn't
+ * chronological silently moves the link onto the wrong screenshot. Re-sort explicitly with asset
+ * id (monotonically increasing with MediaStore insertion order) as the tiebreaker instead of
+ * trusting the native order.
+ */
+function sortByCreationThenId(metas: MediaLibrary.AssetMetadata[]): MediaLibrary.AssetMetadata[] {
+  return [...metas].sort((a, b) => {
+    const byTime = (a.creationTime ?? 0) - (b.creationTime ?? 0);
+    return byTime !== 0 ? byTime : a.id.localeCompare(b.id);
+  });
+}
+
+/**
  * Screenshots album first (works on both platforms for the common case), falling back to a
  * filename check — `Query` can only filter by `AssetField` (creationTime/mediaType/etc), and
  * neither that nor `MediaSubtype.SCREENSHOT` (iOS-only, not a queryable AssetField) can express
@@ -92,18 +108,19 @@ export async function syncAutoScanWithPermission(db: SQLiteDatabase): Promise<Au
 async function findScreenshotCandidates(sinceMs: number): Promise<MediaLibrary.AssetMetadata[]> {
   const album = await MediaLibrary.Album.get('Screenshots').catch(() => null);
   if (album) {
-    return new MediaLibrary.Query()
+    const metas = await new MediaLibrary.Query()
       .album(album)
       .gt(MediaLibrary.AssetField.CREATION_TIME, sinceMs)
       .orderBy(MediaLibrary.AssetField.CREATION_TIME)
       .exeForMetadata();
+    return sortByCreationThenId(metas);
   }
   const images = await new MediaLibrary.Query()
     .eq(MediaLibrary.AssetField.MEDIA_TYPE, MediaLibrary.MediaType.IMAGE)
     .gt(MediaLibrary.AssetField.CREATION_TIME, sinceMs)
     .orderBy(MediaLibrary.AssetField.CREATION_TIME)
     .exeForMetadata();
-  return images.filter((meta) => meta.filename?.toLowerCase().includes('screenshot'));
+  return sortByCreationThenId(images.filter((meta) => meta.filename?.toLowerCase().includes('screenshot')));
 }
 
 function hexLuminance(hex: string): number {
