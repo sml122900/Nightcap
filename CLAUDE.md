@@ -12,6 +12,10 @@
   - **설정 토글 진입 애니메이션(결함7)** — DB/권한 조회가 끝나기 전엔 `Switch` 대신 로딩 인디케이터를 보여줘 마운트 시점에 이미 최종값이 되도록. 이후 진짜 값이 바뀔 때(권한 회수 등)만 애니메이션이 뜬다
   - **링크 해제 시 출처 라벨 잔존(결함8)** — `unlinkCapture`가 `source_url`/`has_link`만 지우고 `source_app`/`source_author`는 남겨뒀던 것을 함께 NULL로. `title`은 사용자 직접 입력 가능성이 있고 스키마상 메타데이터 채움과 구분 불가해 손대지 않음(구분 컬럼 추가는 보고만, 판단 보류)
   - **공유 카드 개선(E-1/E-2)** — 별점 오버레이는 이전 커밋에서 이미 있었고, 이번엔 하단에 "총 N개 중 상위 6"(전부 노출될 땐 "상위" 문구 생략) 표기 추가 + "텍스트로 복사" 액션 신설(상위 6 상한 없이 전체 별점 목록, 별점 내림차순, `1. 제목 ★점수 url` 형식, `Clipboard.setStringAsync`)
+- **보관함 다중 선택 삭제 + 상세 좌우 스와이프(2026-08-11~12)** — 지시서 2건 구현, 2026-08-12 실기기 검증까지 완료.
+  - **다중 선택 삭제** — `LibraryTile` 길게 누르기 → 선택 모드(햅틱), 탭 토글, 마지막 해제 시 자동 종료. 하단 액션바 "N개 선택"+삭제(`Alert.alert` 확인 → 기존 소프트 삭제 경로 재사용, `bulkApplyDrop`을 `db/queries.ts`에 트랜잭션으로 신설). 별점 필터를 바꿔도 화면 밖 선택이 유지됨(`selectedIds`가 `items`/`filter`와 독립). 뒤로가기는 선택 모드만 해제(화면 자체는 유지). 전체 선택 버튼은 의도적으로 없음("아카이브 앱에서 전체 삭제는 사고 경로"). **일괄 삭제는 `triage_sessions`를 건드리지 않는다** — 보관함 삭제는 정리 세션이 아니라서, 건드리면 보류율 계측이 오염된다
+  - **상세 좌우 스와이프** — `LibraryDetailScreen`을 가로 `FlatList`(`pagingEnabled`)로 재작성, 카드별 본문은 `components/library/DetailPage.tsx`로 분리. 순서는 보관함 현재 필터/정렬 그대로, 첫/끝 카드는 바운스(래핑 없음). **네이티브 모듈(PagerView) 미사용** — RN의 세로 스크롤/가로 페이징 직교 제스처 중재로 지시서가 우려한 제스처 충돌이 애초에 발생하지 않아 `activeOffsetX`/`failOffsetY` 같은 수동 설정이 불요. `windowSize`/`initialNumToRender=3`으로 인접 카드 프리로드(스와이프 직후 빈 프레임 없음). 카드 삭제 시 `Math.min(removedIdx, next.length-1)`로 인덱스 보정
+  - **2026-08-12 실기기 검증(실사용자 보관함 16개로 진행)** — 선택 모드 진입/토글/필터 변경 후 선택 유지/뒤로가기 범위, 실제 삭제 1건 → 휴지통 반영 → 복원까지 원상복구 라운드트립 확인. 스와이프 순서·인접 프리로드·경계 바운스·카드별 편집 격리(별점 드래그는 adb로 못 미더워 제목 필드로 대체 검증) 전부 통과. 별점 드래그 자체는 `input tap`이 Gesture Handler의 Pan 활성화 임계값을 못 넘겨 adb로 재현 불가 — 실기기 손 조작 검증은 남음
 - **실기기 검증 + 결함 4건 수정(2026-08-09~10)** — 릴리즈 빌드로 ①온보딩 ③테마를 전수 확인하고(`docs/verification-checklist.md` "실행 기록") 거기서 나온 결함을 지시서 단위로 수정했다.
   - **사진 권한 경계 재정의** — 정리 모드 진입에서 권한 게이트를 제거하고 판단을 `scanNewScreenshots` 한 곳으로 모음. 토글은 `setAutoScanRequested`/`syncAutoScanWithPermission`으로 실제 허가 결과를 따라간다(마운트 + `AppState 'active'` 동기화, 정정 결과는 `meta`에 persist). 근거는 `docs/decisions/photo-permission-scope.md`. 권한 거부 사용자도 공유시트 경로로 코어 루프 전체를 쓸 수 있다
   - **Android 14+ 3상태 접근** — `MediaAccess`(`all`/`limited`/`none`) 단일 타입. `limited`는 권한 있음으로 다뤄 토글을 막지 않고, `LimitedAccessNotice`(설정·온보딩·정리 공용)로 "새 스크린샷은 안 담긴다"를 알리고 `Linking.openSettings()`로 확장 경로를 준다. 근거·실측은 `docs/decisions/android15-limited-media-access.md`
@@ -71,7 +75,7 @@
 - 라이트 모드 자체는 실기기 확인 완료(시네마 고정, 경계, 내비바, 시스템 모드, 반전 버튼, 판정 딤 투명도 전부 정상). 다만 OLED 잔상·스와이프 손맛처럼 정지 스크린샷으로 판단 불가한 것은 여전히 미확인
 - 추출색 클램프(`theme/colorClamp.ts`)는 만들어뒀지만 **소비자가 없다**. 원래 후보였던 보관함 셀 틴트는 무의미(셀에 커버가 꽉 참), 남은 후보였던 LibraryDetail 메타 배경도 2026-08-09 검증에서 경계가 이미 자연스러운 것으로 확인돼 **당장 필요 없다**. 테스트 있는 순수 함수라 유지비 0이므로 남겨두고 백로그
 - 보관함은 여전히 고정 2열 그리드(진짜 메이슨리 아님) — 디자인 시스템 작업에서 건드리지 않았다
-- 별점 모드 손맛/접근성은 실기기 육안·TalkBack 확인이 아직 필요
+- 별점 모드 손맛/접근성은 실기기 육안·TalkBack 확인이 아직 필요(보관함 상세에서도 마찬가지 — adb로는 Pan 제스처를 못 흉내내 손으로만 확인 가능)
 - 릴리즈 빌드는 실기기(Galaxy S24+)에 설치까지 확인됨. 다만 스캔/DRM/휴지통 등 실제 기능 동작은 `docs/verification-checklist.md`로 수동 검증 필요 — 공유시트 유입 경로(이미지/URL 공유)는 이번 라운드에 dev-client 빌드 후 실기기로 검증 예정(사용자 확인 필요, `docs/verification-checklist.md`)
 - 2026-08-09: W3-3 네이티브 리빌드(dev-client debug) + 설치까지 확인(`adb install` Success, `lastUpdateTime` 갱신, `dumpsys shortcut`에 share-target 등록). 지시대로 `am start`는 하지 않음 — 실제 기능(공유시트 상단 노출/클립보드 병합/공유 카드 이미지)은 실기기 수동 검증 필요
 - 2026-07-13: W3-2 반영분 릴리즈 재빌드+실행 확인 완료 — 빌드 성공(3m30s), `dumpsys package` `lastUpdateTime` + `dumpsys activity` `ResumedActivity=com.anonymous.nightcap/.MainActivity`로 설치·포그라운드 실행 모두 확인(`docs/troubleshooting/release-build-launch-confirmation-cut-off.md`의 미해결 항목 해소). 단, 이건 "앱이 켜진다"만 확인된 것 — 공유시트 유입 등 실제 기능 동작은 여전히 `docs/verification-checklist.md`로 수동 검증 필요
