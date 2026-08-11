@@ -1,17 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 import { useSQLiteContext } from 'expo-sqlite';
 import { captureRef } from 'react-native-view-shot';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { makeStyles } from '../theme/makeStyles';
 import { SystemBars } from '../theme/SystemBars';
 import { HeaderButton, HeaderSpacer } from '../components/common/HeaderButton';
 import { useTheme } from '../theme/ThemeProvider';
-import { getShareCardData, ShareCardData } from '../db/queries';
+import { getShareCardData, getShareCardTextItems, ShareCardData } from '../db/queries';
 import { CoverImage } from '../components/common/CoverImage';
 import { StarRating } from '../components/common/StarRating';
+import { Capture } from '../types/capture';
 
+const TOAST_DURATION = 1800;
 const GRID_COLUMNS = 3;
 /** 4장을 3열에 깔면 둘째 행에 빈 칸이 하나 남는다 — 2열로 떨어뜨려야 격자가 채워진다. */
 const GRID_COLUMNS_WHEN_FOUR = 2;
@@ -43,6 +47,16 @@ function statsLabel(total: number, shown: number, avg: number): string {
   return `평균 ★${avg.toFixed(1)} · ${scope}`;
 }
 
+/** E-2: 이미지 그리드와 달리 상위 6장 제한 없이 전체 별점 목록을 텍스트로. */
+function buildShareText(items: (Capture & { stars: number })[], avg: number): string {
+  const lines = items.map((item, i) => {
+    const title = item.title || item.app || '제목 없음';
+    const urlPart = item.sourceUrl ? ` ${item.sourceUrl}` : '';
+    return `${i + 1}. ${title} ★${item.stars.toFixed(1)}${urlPart}`;
+  });
+  return ['이번 주 Nightcap ★', ...lines, `총 ${items.length}개 · 평균 ★${avg.toFixed(1)}`].join('\n');
+}
+
 /**
  * 공유 카드(PROJECT.md §4, W3-3 D) — Letterboxd 문법을 빌린 한 장짜리 요약.
  * "알고리즘이 고른 게 아니라 내가 고른 것들"이라는 정체성을 밖으로 내보내는 유일한 표면이다.
@@ -60,6 +74,9 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
   const cardRef = useRef<View>(null);
   const [data, setData] = useState<ShareCardData | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [copyingText, setCopyingText] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const items = data?.items ?? [];
   const cellWidth = cellWidthPercent(items.length === 4 ? GRID_COLUMNS_WHEN_FOUR : GRID_COLUMNS);
 
@@ -68,6 +85,12 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
       .then(setData)
       .catch((err) => console.warn('[shareCard] load failed', err));
   }, [db]);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastMsg(null), TOAST_DURATION);
+  };
 
   const handleShare = async () => {
     setSharing(true);
@@ -80,6 +103,19 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
       console.warn('[shareCard] share failed', err);
     } finally {
       setSharing(false);
+    }
+  };
+
+  const handleCopyText = async () => {
+    setCopyingText(true);
+    try {
+      const allItems = await getShareCardTextItems(db);
+      await Clipboard.setStringAsync(buildShareText(allItems, data?.avg ?? 0));
+      showToast('복사됨');
+    } catch (err) {
+      console.warn('[shareCard] copy text failed', err);
+    } finally {
+      setCopyingText(false);
     }
   };
 
@@ -138,7 +174,27 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
             <Text style={styles.primaryText}>이미지로 공유</Text>
           )}
         </Pressable>
+        <Pressable
+          onPress={handleCopyText}
+          disabled={copyingText || data === null}
+          style={[styles.secondaryBtn, (copyingText || data === null) && styles.primaryBtnDim]}
+          accessibilityRole="button"
+        >
+          {copyingText ? (
+            <ActivityIndicator size="small" color={theme.c.textPrimary} />
+          ) : (
+            <Text style={styles.secondaryText}>텍스트로 복사</Text>
+          )}
+        </Pressable>
       </View>
+
+      {toastMsg ? (
+        <View style={[styles.toastWrap, { bottom: insets.bottom + 90 }]} pointerEvents="none">
+          <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(200)} style={styles.toast}>
+            <Text style={styles.toastText}>{toastMsg}</Text>
+          </Animated.View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -168,6 +224,7 @@ const useStyles = makeStyles((t) => ({
   actions: {
     paddingHorizontal: t.space.xl,
     paddingTop: t.space.sm,
+    gap: t.space.sm,
   },
   primaryBtn: {
     paddingVertical: 17,
@@ -183,6 +240,40 @@ const useStyles = makeStyles((t) => ({
     fontWeight: '800',
     color: t.c.onAccent,
     letterSpacing: -0.2,
+  },
+  secondaryBtn: {
+    paddingVertical: 15,
+    borderRadius: t.radius.sheet - 4,
+    backgroundColor: t.c.surface,
+    borderWidth: 1,
+    borderColor: t.c.border,
+    alignItems: 'center',
+  },
+  secondaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: t.c.textPrimary,
+    letterSpacing: -0.2,
+  },
+  toastWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  toast: {
+    backgroundColor: t.c.surfaceRaised,
+    borderWidth: 1,
+    borderColor: t.c.border,
+    borderRadius: 14,
+    paddingHorizontal: t.space.xl - 4,
+    paddingVertical: t.space.md,
+    ...t.shadow.modal,
+  },
+  toastText: {
+    color: t.c.textPrimary,
+    fontSize: 13.5,
+    fontWeight: '700',
   },
 }));
 

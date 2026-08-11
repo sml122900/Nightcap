@@ -120,6 +120,18 @@ export async function getShareCardData(db: SQLiteDatabase): Promise<ShareCardDat
 }
 
 /**
+ * 공유 카드 "텍스트로 복사" 전용 — 이미지 그리드(getShareCardData)는 6장 상한이 있지만
+ * 텍스트 목록은 그 제한이 없다(E-2). 별점 내림차순, 동점은 최근 정리한 순.
+ */
+export async function getShareCardTextItems(db: SQLiteDatabase): Promise<(Capture & { stars: number })[]> {
+  const rows = await db.getAllAsync<CaptureRow>(
+    `SELECT * FROM captures WHERE verdict = 'rated' AND deleted_at IS NULL
+     ORDER BY stars DESC, triaged_at DESC`
+  );
+  return rows.map((row) => ({ ...rowToCapture(row), stars: row.stars ?? 0 }));
+}
+
+/**
  * 휴지통: deleted_at으로부터 7일 이내인 항목만(§1 "7일 이내 복원 가능"). image_uri
  * 유무로 거르지 않는다 — 목데이터는 실제 캡처 파이프라인이 없어 image_uri가 항상
  * NULL이라, 그 기준으로 걸렀다면 휴지통 화면이 영구히 비어 검증 자체가 불가능해진다.
