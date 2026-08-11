@@ -50,7 +50,6 @@
 - `DRM_LUMINANCE_THRESHOLD` 실기기 튜닝(다크모드 오탐 체크 포함, 아직 미검증)
 - iOS 공유시트(Share Extension) 실기기 검증 — macOS/Xcode 환경이 없어 이번 라운드는 Android(`expo run:android`)만 실기기 확인, iOS는 `expo prebuild`까지만(네이티브 프로젝트 생성 확인) 하고 실행은 못 함
 - 온보딩 카피에 "공유시트에서 아이콘이 안 보이면 길게 눌러 고정하세요" 문구 추가 후보 — 이 기종에 상단행이 없다는 2026-08-11 결론에 따른 대체 안내(`pushDynamicShortcut`는 폐기)
-- `captures.title`이 사용자 입력인지 URL 메타데이터로 채워졌는지 구분하는 컬럼 — 결함8 수정 중 발견한 갭. 지금은 링크 해제 시 title을 안 건드리는 걸로 회피했지만, 구분이 필요해지면 migration 여부 판단 필요(v8)
 
 **미해결 결함 (2026-08-09 실기기 검증에서 발견, 전부 이번 리페인트 이전 코드)**
 - ~~[높음] 자동수집 ON + 사진 권한 없음 → 정리 모드 전체 차단~~ **해소(2026-08-09)** — 정리 모드 진입에서 사진 권한 게이트를 제거하고 판단을 `scanNewScreenshots` 한 곳으로 모았다(`aad4a31`). 토글도 실제 허가 결과를 따르도록 `setAutoScanRequested`/`syncAutoScanWithPermission`으로 통일(`98d4a1c`). "자동수집 ON인데 권한 없음" 안내 배너 + 시스템 설정 딥링크는 신규 UI라 별도 판단 대상으로 남겨뒀고, 그래서 `MediaAccessDeniedScreen`은 참조 0인 채로 보존돼 있다
@@ -63,7 +62,7 @@
 - ~~[결함5·높음] 클립보드 링크가 스크린샷 A가 아니라 다음 장 B에 붙음~~ **해소** — 배치 처리 자체(오름차순 + 배치당 1회 병합)는 정상이었다. 실제 원인은 `orderBy(CREATION_TIME)`이 동률(같은 초에 찍은 스샷 두 장)일 때 안정적 타이브레이크를 보장하지 않는 것 — asset id를 2차 정렬키로 명시(`app/src/services/screenshotScan.ts`의 `sortByCreationThenId`). "A에만 라벨, B엔 없음" 실기기 회귀 확인은 아직 안 됨
 - ~~[결함6·높음] 스캔이 앱 실행만으론 안 돎~~ **해소** — `scanNewScreenshots`가 `TriageScreen` 진입에만 묶여 있던 걸 `App.tsx`의 콜드스타트 + `AppState` active 복귀 트리거로 확장. 트리거 중복 실행을 막는 in-flight 가드를 `scanNewScreenshots` 자체에 추가
 - ~~[결함7·중] 설정 진입마다 자동수집 토글 OFF→ON 애니메이션~~ **해소** — DB/권한 조회가 끝나기 전엔 `Switch` 대신 로딩 인디케이터, 조회 완료 후에야 `Switch`를 마운트해 첫 렌더부터 최종값(`app/src/screens/SettingsScreen.tsx`)
-- ~~[결함8·중] 링크 해제해도 회색 출처 라벨(`유튜브 · ...`)이 안 지워짐~~ **해소** — `unlinkCapture`가 `source_url`/`has_link`만 지우던 걸 `source_app`/`source_author`도 함께 NULL로(`app/src/services/clipboardLink.ts`). `title`은 사용자 직접 입력 가능성이 있어 그대로 둠 — 위 "다음 단계"의 migration 항목 참고
+- ~~[결함8·중] 링크 해제해도 회색 출처 라벨(`유튜브 · ...`)이 안 지워짐~~ **해소** — `unlinkCapture`가 `source_url`/`has_link`만 지우던 걸 `source_app`/`source_author`도 함께 NULL로(`app/src/services/clipboardLink.ts`). `title`은 그대로 둠 — migration은 하지 않기로 확정(**종결**). 근거: 링크 해제는 저빈도 액션이고 남는 비용은 편집 화면에서 사용자가 직접 지울 수 있는 라벨 한 줄뿐, migration + 플래그 컬럼 + 편집 경로 전체에 세팅하는 비용이 더 크다. "해제 시점에 메타데이터 채운 값과 같으면 지운다" 절충안도 검토했지만 원본 메타데이터 값을 저장해둔 곳이 없어(재조회는 네트워크라 배제) 비교 자체가 불가능 — 현상 유지로 종결
 - 상세는 `docs/verification-checklist.md` "실행 기록 — 2026-08-11" 참고
 
 **알려진 제약**
