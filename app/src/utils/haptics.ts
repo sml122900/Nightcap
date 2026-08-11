@@ -18,3 +18,8 @@ export function fireVerdictHaptic(verdict: Verdict): void {
 export function fireEnterRateHaptic(): void {
   void Haptics.selectionAsync();
 }
+
+/** fired once when a long-press enters library multi-select mode */
+export function fireSelectionModeHaptic(): void {
+  void Haptics.selectionAsync();
+}

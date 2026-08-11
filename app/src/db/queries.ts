@@ -42,6 +42,28 @@ export async function applyVerdict(
   }
 }
 
+/**
+ * 보관함 다중 선택 삭제 — 기존 휴지통 경로(soft delete)를 그대로 재사용, 영구 삭제 아님.
+ * `withExclusiveTransactionAsync`로 묶어 전체가 한 번에 반영되게 한다(중간에 앱이 죽어도
+ * 절반만 지워지는 상태 방지) — 트리거는 단일 확인 다이얼로그 뒤의 awaited 액션 하나뿐이라
+ * 다른 곳의 per-id writeQueue와 경합할 일이 없다.
+ */
+export async function bulkApplyDrop(db: SQLiteDatabase, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const now = Date.now();
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    for (const id of ids) {
+      await txn.runAsync(
+        `UPDATE captures SET verdict = ?, triaged_at = ?, deleted_at = ? WHERE id = ?`,
+        verdictToDb('drop'),
+        now,
+        now,
+        id
+      );
+    }
+  });
+}
+
 /** 오른쪽 스와이프(이전): 직전 판정을 되돌려 카드를 다시 미판정 상태로 되돌림. */
 export async function undoVerdict(db: SQLiteDatabase, id: string): Promise<void> {
   await db.runAsync(

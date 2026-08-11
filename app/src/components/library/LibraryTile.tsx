@@ -9,18 +9,25 @@ import { StarRating } from '../common/StarRating';
 interface LibraryTileProps {
   item: Capture & { stars: number };
   onPress?: () => void;
+  onLongPress?: () => void;
+  /** multi-select (PROJECT.md 보관함 §): scaled down + outlined + check badge */
+  selected?: boolean;
 }
 
 /**
  * Grid tile — fixed 2-column layout, not a true Pinterest masonry (PROJECT.md §4).
  * Mock-seeded content has no real image so it falls back to skeleton placeholders.
  */
-export function LibraryTile({ item, onPress }: LibraryTileProps) {
+export function LibraryTile({ item, onPress, onLongPress, selected }: LibraryTileProps) {
   const styles = useStyles();
   const badge = useBadgeStyles('cinema');
   const theme = useTheme();
   return (
-    <Pressable onPress={onPress} style={styles.tile}>
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={[styles.tile, selected && styles.tileSelected]}
+    >
       <View style={styles.thumb}>
         {item.kind !== 'drm' && item.imageUri ? (
           <CoverImage uri={item.imageUri} style={StyleSheet.absoluteFill} backgroundColor={theme.c.surfaceRaised} />
@@ -51,6 +58,11 @@ export function LibraryTile({ item, onPress }: LibraryTileProps) {
           {item.src ? `${item.app} · ${item.src}` : item.app}
         </Text>
       </View>
+      {selected ? (
+        <View style={styles.checkBadge}>
+          <Text style={styles.checkGlyph}>✓</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -64,6 +76,28 @@ const useStyles = makeStyles((t) => ({
     borderColor: t.c.border,
     overflow: 'hidden',
     ...t.shadow.card,
+  },
+  // Scale + a heavier version of the same border token — no overlay tint so the cover stays readable.
+  tileSelected: {
+    transform: [{ scale: 0.96 }],
+    borderWidth: 2,
+    borderColor: t.c.border,
+  },
+  checkBadge: {
+    position: 'absolute',
+    top: t.space.sm,
+    right: t.space.sm,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: t.c.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkGlyph: {
+    color: t.c.onAccent,
+    fontSize: 13,
+    fontWeight: '800',
   },
   thumb: {
     height: 140,
