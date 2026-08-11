@@ -173,13 +173,26 @@ async function setWatermark(db: SQLiteDatabase, value: number): Promise<void> {
   );
 }
 
+// Now triggered from multiple places (cold start, AppState resume, triage-mount) that can land
+// within the same tick — without this, two concurrent scans could each see the same "new" asset
+// before either has inserted it, double-copying the file and racing the clipboard merge onto both.
+let inFlightScan: Promise<void> | null = null;
+
 /**
  * Scans for new screenshots since the last watermark, copies them into the app sandbox, and
  * inserts a `captures` row per asset. Never throws — a bad candidate is skipped and retried
  * next scan (see the watermark rule below); this is called from the UI thread on app foreground
  * and must not be able to crash the triage screen (PROJECT.md W3-1 §7 verification list).
  */
-export async function scanNewScreenshots(db: SQLiteDatabase): Promise<void> {
+export function scanNewScreenshots(db: SQLiteDatabase): Promise<void> {
+  if (inFlightScan) return inFlightScan;
+  inFlightScan = runScan(db).finally(() => {
+    inFlightScan = null;
+  });
+  return inFlightScan;
+}
+
+async function runScan(db: SQLiteDatabase): Promise<void> {
   try {
     // `limited` still runs: the user's picked assets are legitimately scannable. It just can't
     // see anything taken after the fact, which the UI explains rather than this function refusing.

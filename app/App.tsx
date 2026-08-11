@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect, useState } from 'react';
-import { BackHandler, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, BackHandler, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useShareIntent } from 'expo-share-intent';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -8,7 +8,8 @@ import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
 import { MAX_FONT_SCALE, palettes } from './src/theme/tokens';
 import { initDb } from './src/db/init';
 import { ingestShareIntent } from './src/services/shareIntake';
-import { getOnboardingCompleted } from './src/services/settings';
+import { getAutoScanEnabled, getOnboardingCompleted } from './src/services/settings';
+import { scanNewScreenshots } from './src/services/screenshotScan';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { TriageScreen } from './src/screens/TriageScreen';
@@ -36,11 +37,43 @@ function RootNavigator() {
   /** 공유 카드는 완료 요약과 보관함 두 곳에서 열려서, 닫을 때 온 곳으로 돌아가야 한다. */
   const [shareCardFrom, setShareCardFrom] = useState<Screen>('home');
   const [shareToastNonce, setShareToastNonce] = useState(0);
+  /** Bumped after a background auto-scan finds something, so the home screen's count catches up
+   * without the "스택에 담았어요" toast that share intake shows (this arrival wasn't a user action). */
+  const [scanRefreshNonce, setScanRefreshNonce] = useState(0);
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
 
   useEffect(() => {
     getOnboardingCompleted(db).then((completed) => setScreen(completed ? 'home' : 'onboarding'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db]);
+
+  /**
+   * Auto-scan used to only run from inside TriageScreen, so screenshots taken while the app was
+   * closed sat invisible until the user happened to enter triage some other way (share sheet,
+   * etc.) — see docs/troubleshooting for the 실사용 검증 writeup. Cold start + AppState resume
+   * cover "app opened" and "backgrounded then foregrounded"; entering triage still scans too
+   * (TriageScreen's own effect), and `scanNewScreenshots`'s in-flight dedupe makes overlap harmless.
+   */
+  useEffect(() => {
+    (async () => {
+      if (!(await getOnboardingCompleted(db))) return;
+      if (!(await getAutoScanEnabled(db))) return;
+      await scanNewScreenshots(db);
+      setScanRefreshNonce((n) => n + 1);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      (async () => {
+        if (!(await getAutoScanEnabled(db))) return;
+        await scanNewScreenshots(db);
+        setScanRefreshNonce((n) => n + 1);
+      })();
+    });
+    return () => sub.remove();
   }, [db]);
 
   useEffect(() => {
@@ -117,6 +150,7 @@ function RootNavigator() {
       onOpenLibrary={() => setScreen('library')}
       onOpenSettings={() => setScreen('settings')}
       shareToastNonce={shareToastNonce}
+      refreshNonce={scanRefreshNonce}
     />
   );
 }

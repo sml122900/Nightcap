@@ -16,13 +16,15 @@ interface HomeScreenProps {
   onOpenSettings: () => void;
   /** bumped whenever a share-sheet capture lands while the app is open — triggers a toast + recount */
   shareToastNonce: number;
+  /** bumped after a background auto-scan finds new screenshots — recount only, no toast */
+  refreshNonce: number;
 }
 
 /**
  * Landing screen, separate from the swipe deck (TriageScreen) — a shared capture should land
  * here with a toast, not drop the user straight into triage (docs/decisions/share-intent-primary-ingestion.md).
  */
-export function HomeScreen({ onStartTriage, onOpenLibrary, onOpenSettings, shareToastNonce }: HomeScreenProps) {
+export function HomeScreen({ onStartTriage, onOpenLibrary, onOpenSettings, shareToastNonce, refreshNonce }: HomeScreenProps) {
   const styles = useStyles();
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
@@ -30,6 +32,7 @@ export function HomeScreen({ onStartTriage, onOpenLibrary, onOpenSettings, share
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevNonceRef = useRef(shareToastNonce);
+  const prevRefreshRef = useRef(refreshNonce);
 
   const reload = async () => {
     setCount(await getTodayStackCount(db));
@@ -49,6 +52,13 @@ export function HomeScreen({ onStartTriage, onOpenLibrary, onOpenSettings, share
     toastTimer.current = setTimeout(() => setToastMsg(null), TOAST_DURATION);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shareToastNonce]);
+
+  useEffect(() => {
+    if (refreshNonce === prevRefreshRef.current) return;
+    prevRefreshRef.current = refreshNonce;
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshNonce]);
 
   const hasStack = (count ?? 0) > 0;
 
