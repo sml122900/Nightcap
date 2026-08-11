@@ -4,7 +4,14 @@
 
 ## 진행상황
 
-**완료 (W1, W2, W3-1, W3-2, W3-3, 디자인 시스템/라이트 모드, 검증 라운드 결함 4건)**
+**완료 (W1, W2, W3-1, W3-2, W3-3, 디자인 시스템/라이트 모드, 검증 라운드 결함 8건)**
+- **실사용 검증 결함 4건 + 공유 카드 개선(2026-08-11)** — adb로 공유시트 상단행을 직접 확인(텍스트/이미지 SEND 인텐트 → 스크린샷 판독)하고, 실사용 중 발견된 결함 4건(결함5~8)을 지시서 단위로 수정. 상세는 `docs/verification-checklist.md` "실행 기록 — 2026-08-11".
+  - **공유시트 상단행 결론** — 이 기종(Galaxy S24+, One UI/Android 16)은 텍스트·이미지 공유 둘 다 상단행 개념 자체가 없다(알파벳순 그리드 하나뿐). `pushDynamicShortcut` 백로그 제거, "아이콘 길게 눌러 고정" 안내를 온보딩 카피 후보로
+  - **스캔이 앱 실행만으론 안 돎(결함6)** — `scanNewScreenshots`가 `TriageScreen` 진입에만 묶여 있던 걸 콜드스타트 + `AppState` active 복귀 트리거로 확장(`App.tsx`). 트리거가 늘어난 만큼 `scanNewScreenshots`에 in-flight 중복 실행 가드 추가
+  - **클립보드 링크 off-by-one(결함5)** — 배치 처리 로직(오름차순 + 배치당 1회 병합) 자체는 정상이었음. 실제 원인은 `orderBy(CREATION_TIME)`이 동률(같은 초에 찍은 스샷 두 장)일 때 안정적 타이브레이크를 보장하지 않은 것 — asset id를 2차 정렬키로 명시해 결정론적 오름차순 확보
+  - **설정 토글 진입 애니메이션(결함7)** — DB/권한 조회가 끝나기 전엔 `Switch` 대신 로딩 인디케이터를 보여줘 마운트 시점에 이미 최종값이 되도록. 이후 진짜 값이 바뀔 때(권한 회수 등)만 애니메이션이 뜬다
+  - **링크 해제 시 출처 라벨 잔존(결함8)** — `unlinkCapture`가 `source_url`/`has_link`만 지우고 `source_app`/`source_author`는 남겨뒀던 것을 함께 NULL로. `title`은 사용자 직접 입력 가능성이 있고 스키마상 메타데이터 채움과 구분 불가해 손대지 않음(구분 컬럼 추가는 보고만, 판단 보류)
+  - **공유 카드 개선(E-1/E-2)** — 별점 오버레이는 이전 커밋에서 이미 있었고, 이번엔 하단에 "총 N개 중 상위 6"(전부 노출될 땐 "상위" 문구 생략) 표기 추가 + "텍스트로 복사" 액션 신설(상위 6 상한 없이 전체 별점 목록, 별점 내림차순, `1. 제목 ★점수 url` 형식, `Clipboard.setStringAsync`)
 - **실기기 검증 + 결함 4건 수정(2026-08-09~10)** — 릴리즈 빌드로 ①온보딩 ③테마를 전수 확인하고(`docs/verification-checklist.md` "실행 기록") 거기서 나온 결함을 지시서 단위로 수정했다.
   - **사진 권한 경계 재정의** — 정리 모드 진입에서 권한 게이트를 제거하고 판단을 `scanNewScreenshots` 한 곳으로 모음. 토글은 `setAutoScanRequested`/`syncAutoScanWithPermission`으로 실제 허가 결과를 따라간다(마운트 + `AppState 'active'` 동기화, 정정 결과는 `meta`에 persist). 근거는 `docs/decisions/photo-permission-scope.md`. 권한 거부 사용자도 공유시트 경로로 코어 루프 전체를 쓸 수 있다
   - **Android 14+ 3상태 접근** — `MediaAccess`(`all`/`limited`/`none`) 단일 타입. `limited`는 권한 있음으로 다뤄 토글을 막지 않고, `LimitedAccessNotice`(설정·온보딩·정리 공용)로 "새 스크린샷은 안 담긴다"를 알리고 `Linking.openSettings()`로 확장 경로를 준다. 근거·실측은 `docs/decisions/android15-limited-media-access.md`
@@ -33,15 +40,17 @@
 - **첫 실행 온보딩(3장, W3-2)** — `app/src/screens/OnboardingScreen.tsx` 신설: 탭으로 넘기는 3단계(정체성 공감 카피 → 공유시트 사용법 스켈레톤 목업 → 자동 수집 권한 토글+CTA). 완료 여부는 `meta.onboarding_completed_at`(`app/src/services/settings.ts`의 `getOnboardingCompleted`/`setOnboardingCompleted`, 기존 `auto_scan_enabled`와 같은 upsert 패턴)로 저장 — `App.tsx`의 `RootNavigator`가 마운트 시 이 플래그를 읽어 미완료면 온보딩을, 완료면 기존 홈 로직을 그대로 태운다. 3장 토글 ON 시 `requestMediaAccess()`(기존엔 어디서도 호출 안 되던 정식 권한 요청 함수)를 호출하고 결과와 무관하게 진행 — 거부해도 스캔 파이프라인이 조용히 no-op하므로 별도 분기 불필요. iOS 백탭/버블 GIF 온보딩은 이걸로 대체(아래 참고).
 
 - **도그푸딩 계측(W3-3 A)** — 마이그레이션 v6(`captures.intake_source`/`has_link` + `triage_sessions` 테이블, 백필은 확정 가능한 것만) + `app/src/services/metrics.ts`. `TriageScreen`이 진입 시 세션 open → 판정마다 카운터(±1, 되돌리기 반영) → Done 도달 시 `completed=1` / 언마운트·백그라운드 5분 초과 시 `completed=0`으로 닫고 새 세션. 세션 쓰기도 writeQueue(`session:{id}`) 경유. '보류'는 rate@2.5로 즉시 커밋돼 rate 모드 2.5와 구분이 안 되므로 `TriageDeck.onCommit`에 `quickHold` 플래그를 추가해 `deferred`/`kept`를 가름. 설정 화면 하단 개발자 섹션에 리터럴 숫자로 표시(도그푸딩은 릴리즈 빌드로 하므로 `__DEV__` 대신 버전 라벨 5탭 히든 게이트 병행).
-- **Direct Share 등록(W3-3 B)** — `app/plugins/withDirectShareShortcut.js`: `res/xml/shortcuts.xml`(share-target + 정적 shortcut) + MainActivity `android.app.shortcuts` meta-data + 라벨 string. `dumpsys shortcut`으로 `categories={com.anonymous.nightcap.category.SHARE_TARGET}` 등록 확인됨. 실제 공유시트 상단 행 노출은 실기기 육안 확인 필요(정적 share-target만으로 상단행에 뜨지 않으면 동적 shortcut push가 필요 — 그건 네이티브 코드).
+- **Direct Share 등록(W3-3 B)** — `app/plugins/withDirectShareShortcut.js`: `res/xml/shortcuts.xml`(share-target + 정적 shortcut) + MainActivity `android.app.shortcuts` meta-data + 라벨 string. `dumpsys shortcut`으로 `categories={com.anonymous.nightcap.category.SHARE_TARGET}` 등록 확인됨. **공유시트 상단행 노출은 2026-08-11에 결론 남** — Galaxy S24+/Android 16 One UI는 상단행 개념 자체가 없어(알파벳순 그리드 하나뿐) 정적/동적 shortcut 여부와 무관. `pushDynamicShortcut` 백로그 제거.
 - **클립보드 URL 병합(W3-3 C)** — `app/src/services/clipboardLink.ts`. 이미지 유입 시 클립보드가 URL이고 `meta.last_clipboard_url`과 다를 때만 병합. Android엔 클립보드 타임스탬프가 없어 "30분 이내"를 직접 못 재고 문자열 변화 감지가 실질 게이트. `image_uri`는 절대 안 덮음(스샷이 원본). 카드 "🔗 링크 포함" 라벨 + 보관함 상세 "링크 해제". 시도/성공 카운터는 개발자 섹션에 노출.
-- **공유 카드(W3-3 D)** — `app/src/screens/ShareCardScreen.tsx`: 상단 카피 / 별점 상위 4~9장 3열 그리드 / 하단 기간·평균·총 개수. `captureRef`는 카드 뷰에만. 진입은 완료 요약 + 보관함 상단, 4장 미만이면 버튼 숨김.
+- **공유 카드(W3-3 D, 2026-08-11 개선)** — `app/src/screens/ShareCardScreen.tsx`: 상단 카피 / 별점 상위 4~6장 3열(4장은 2열) 그리드, 셀 하단 별점 오버레이 / 하단 기간·"평균·총 N개 중 상위 6"(전부 노출 시 "상위" 생략) / "텍스트로 복사"(상한 없이 전체 별점 목록, `db/queries.ts`의 `getShareCardTextItems`). `captureRef`는 카드 뷰에만. 진입은 완료 요약 + 보관함 상단, 4장 미만이면 버튼 숨김.
 
 **진행 중 아님 / 다음 단계 (W4~)**
 - 플로팅 버블 — W3-3 계측 2주치 보고 판단(스펙은 PROJECT.md §10에 선반영: 재탭 병합/피드백 라벨/하단 끌어 숨김)
 - 보관함 진짜 메이슨리(현재는 고정 2열 그리드로 단순화됨)
 - `DRM_LUMINANCE_THRESHOLD` 실기기 튜닝(다크모드 오탐 체크 포함, 아직 미검증)
 - iOS 공유시트(Share Extension) 실기기 검증 — macOS/Xcode 환경이 없어 이번 라운드는 Android(`expo run:android`)만 실기기 확인, iOS는 `expo prebuild`까지만(네이티브 프로젝트 생성 확인) 하고 실행은 못 함
+- 온보딩 카피에 "공유시트에서 아이콘이 안 보이면 길게 눌러 고정하세요" 문구 추가 후보 — 이 기종에 상단행이 없다는 2026-08-11 결론에 따른 대체 안내(`pushDynamicShortcut`는 폐기)
+- `captures.title`이 사용자 입력인지 URL 메타데이터로 채워졌는지 구분하는 컬럼 — 결함8 수정 중 발견한 갭. 지금은 링크 해제 시 title을 안 건드리는 걸로 회피했지만, 구분이 필요해지면 migration 여부 판단 필요(v8)
 
 **미해결 결함 (2026-08-09 실기기 검증에서 발견, 전부 이번 리페인트 이전 코드)**
 - ~~[높음] 자동수집 ON + 사진 권한 없음 → 정리 모드 전체 차단~~ **해소(2026-08-09)** — 정리 모드 진입에서 사진 권한 게이트를 제거하고 판단을 `scanNewScreenshots` 한 곳으로 모았다(`aad4a31`). 토글도 실제 허가 결과를 따르도록 `setAutoScanRequested`/`syncAutoScanWithPermission`으로 통일(`98d4a1c`). "자동수집 ON인데 권한 없음" 안내 배너 + 시스템 설정 딥링크는 신규 UI라 별도 판단 대상으로 남겨뒀고, 그래서 `MediaAccessDeniedScreen`은 참조 0인 채로 보존돼 있다
@@ -50,8 +59,15 @@
 - ~~[높음] Android 15 limited 접근에서 자동수집이 조용히 무력화~~ **해소(2026-08-10)** — `MediaAccess`(`all`/`limited`/`none`) 단일 타입으로 판별을 통일하고(`80792ef`), limited일 때 설정·온보딩에 안내 + "전체 허용" 액션을 띄운다(`2856d3a`, `f332a60`). limited는 권한이 있는 상태라 토글을 막지 않는다. "전체 허용" 액션은 `presentPermissionsPicker`가 아니라 `Linking.openSettings()`를 연다 — Android에선 전자가 그냥 권한 재요청이라 사용자가 한 번 선택한 뒤에는 조용한 no-op이기 때문(실측·근거는 같은 문서 말미). 시스템 설정이 열리는 것, 복귀 시 안내가 사라지는 것, 새 스크린샷이 다시 잡히는 것까지 확인 완료
 - 상세는 `docs/verification-checklist.md` "실행 기록" 참고
 
+**실사용 검증 결함 (2026-08-11 발견, 전부 해소)**
+- ~~[결함5·높음] 클립보드 링크가 스크린샷 A가 아니라 다음 장 B에 붙음~~ **해소** — 배치 처리 자체(오름차순 + 배치당 1회 병합)는 정상이었다. 실제 원인은 `orderBy(CREATION_TIME)`이 동률(같은 초에 찍은 스샷 두 장)일 때 안정적 타이브레이크를 보장하지 않는 것 — asset id를 2차 정렬키로 명시(`app/src/services/screenshotScan.ts`의 `sortByCreationThenId`). "A에만 라벨, B엔 없음" 실기기 회귀 확인은 아직 안 됨
+- ~~[결함6·높음] 스캔이 앱 실행만으론 안 돎~~ **해소** — `scanNewScreenshots`가 `TriageScreen` 진입에만 묶여 있던 걸 `App.tsx`의 콜드스타트 + `AppState` active 복귀 트리거로 확장. 트리거 중복 실행을 막는 in-flight 가드를 `scanNewScreenshots` 자체에 추가
+- ~~[결함7·중] 설정 진입마다 자동수집 토글 OFF→ON 애니메이션~~ **해소** — DB/권한 조회가 끝나기 전엔 `Switch` 대신 로딩 인디케이터, 조회 완료 후에야 `Switch`를 마운트해 첫 렌더부터 최종값(`app/src/screens/SettingsScreen.tsx`)
+- ~~[결함8·중] 링크 해제해도 회색 출처 라벨(`유튜브 · ...`)이 안 지워짐~~ **해소** — `unlinkCapture`가 `source_url`/`has_link`만 지우던 걸 `source_app`/`source_author`도 함께 NULL로(`app/src/services/clipboardLink.ts`). `title`은 사용자 직접 입력 가능성이 있어 그대로 둠 — 위 "다음 단계"의 migration 항목 참고
+- 상세는 `docs/verification-checklist.md` "실행 기록 — 2026-08-11" 참고
+
 **알려진 제약**
-- **밀린 실기기 검증은 `docs/verification-checklist.md`에 순서대로 정리돼 있다**(① 온보딩 → ② W3-3 → ③ 테마). ① ③은 2026-08-09에 통과했고, ②의 공유시트 상단행·클립보드 병합·공유 카드 저장은 사람이 직접 해야 해서 남아 있다
+- **밀린 실기기 검증은 `docs/verification-checklist.md`에 순서대로 정리돼 있다**(① 온보딩 → ② W3-3 → ③ 테마). ① ③은 2026-08-09에 통과했고, ②의 공유시트 상단행은 2026-08-11에 adb로 결론 남(이 기종엔 상단행이 없음). 클립보드 병합 3종·공유 카드 저장은 여전히 남아 있다 — 2026-08-11 시도 당시 사진 권한이 `USER_FIXED`로 막혀 시스템 설정에서 사람이 직접 켜야 하는 상태였다(보관함도 평점 매긴 캡처 0개라 공유 카드는 재료도 없었음)
 - 라이트 모드 자체는 실기기 확인 완료(시네마 고정, 경계, 내비바, 시스템 모드, 반전 버튼, 판정 딤 투명도 전부 정상). 다만 OLED 잔상·스와이프 손맛처럼 정지 스크린샷으로 판단 불가한 것은 여전히 미확인
 - `bg` 값(`#0B0D12` vs 순수 `#000000`)은 **미결**. OLED 배터리 + 스샷 명암비가 순수 검정 편이고, 층위 구분은 `surface`가 이미 하고 있어 `bg`만 내려도 위계가 안 무너진다. 반대급부는 스크롤 잔상 — 실기기 비교 후 결정한다. 시네마 `#08090C`도 같이. 그 전까지 코드 수정 금지
 - 추출색 클램프(`theme/colorClamp.ts`)는 만들어뒀지만 **소비자가 없다**. 원래 후보였던 보관함 셀 틴트는 무의미(셀에 커버가 꽉 참), 남은 후보였던 LibraryDetail 메타 배경도 2026-08-09 검증에서 경계가 이미 자연스러운 것으로 확인돼 **당장 필요 없다**. 테스트 있는 순수 함수라 유지비 0이므로 남겨두고 백로그
