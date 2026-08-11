@@ -81,7 +81,7 @@ export function LibraryScreen({ onBack, onOpenTrash, onOpenShareCard }: LibraryS
     return () => sub.remove();
   }, [selectionMode, selectedId]);
 
-  const selectedItem = items.find((item) => item.id === selectedId) ?? null;
+  const selectedIndex = selectedId === null ? -1 : items.findIndex((item) => item.id === selectedId);
 
   const handleCloseDetail = () => {
     setSelectedId(null);
@@ -131,8 +131,8 @@ export function LibraryScreen({ onBack, onOpenTrash, onOpenShareCard }: LibraryS
     ]);
   };
 
-  if (selectedItem) {
-    return <LibraryDetailScreen item={selectedItem} onBack={handleCloseDetail} />;
+  if (selectedIndex !== -1) {
+    return <LibraryDetailScreen items={items} initialIndex={selectedIndex} onBack={handleCloseDetail} />;
   }
 
   return (
