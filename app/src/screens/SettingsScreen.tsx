@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { makeStyles } from '../theme/makeStyles';
@@ -47,6 +47,11 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const [autoScan, setAutoScan] = useState(false);
   const [access, setAccess] = useState<MediaAccess>('none');
+  // The first read is async (DB + permission check), so the toggle would otherwise mount at its
+  // false default and immediately animate to the real value — reading as "it just turned on".
+  // Holding the switch back until that first read lands means it *mounts* already correct instead
+  // of animating into place; only a genuine later change (e.g. permission revoked) should animate.
+  const [autoScanLoaded, setAutoScanLoaded] = useState(false);
   // Dogfooding happens on a release build, so `__DEV__` alone would hide these numbers exactly
   // when they're being collected — the version label doubles as a hidden reveal (W3-3 A-3).
   const [revealed, setRevealed] = useState(__DEV__);
@@ -63,7 +68,10 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   useEffect(() => {
     const resync = () => {
       syncAutoScanWithPermission(db)
-        .then(applyState)
+        .then((state) => {
+          applyState(state);
+          setAutoScanLoaded(true);
+        })
         .catch((err) => console.warn('[settings] auto-scan sync failed', err));
     };
     resync();
@@ -108,11 +116,17 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
             <Text style={styles.rowLabel}>스크린샷 자동 수집</Text>
             <Text style={styles.rowDesc}>켜면 앨범의 새 스크린샷을 자동으로 스택에 담아요. 꺼두면 공유하기로 보낸 것만 담겨요.</Text>
           </View>
-          <Switch
-            value={autoScan}
-            onValueChange={handleToggle}
-            trackColor={{ false: theme.c.border, true: theme.c.accent }}
-          />
+          {autoScanLoaded ? (
+            <Switch
+              value={autoScan}
+              onValueChange={handleToggle}
+              trackColor={{ false: theme.c.border, true: theme.c.accent }}
+            />
+          ) : (
+            <View style={styles.switchPlaceholder}>
+              <ActivityIndicator size="small" color={theme.c.textTertiary} />
+            </View>
+          )}
         </View>
 
         {/* `all`에서는 아예 렌더하지 않는다 — 정상 상태에 설명을 붙이면 그게 경고로 읽힌다. */}
@@ -221,6 +235,13 @@ const useStyles = makeStyles((t) => ({
   },
   rowText: {
     flex: 1,
+  },
+  // Matches the Switch's footprint so the row doesn't shift width once the real control mounts.
+  switchPlaceholder: {
+    width: 51,
+    height: 31,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rowLabel: {
     fontSize: 15,
