@@ -37,6 +37,12 @@ function periodLabel(from: number | null, to: number | null): string {
   return start === end ? start : `${start} – ${end}`;
 }
 
+/** `total`이 그리드에 보이는 장수보다 많을 때만 "상위 N"을 붙인다 — 다 보이는데 "상위"라고 하면 거짓말이 된다. */
+function statsLabel(total: number, shown: number, avg: number): string {
+  const scope = total > shown ? `총 ${total}개 중 상위 ${shown}` : `총 ${total}개`;
+  return `평균 ★${avg.toFixed(1)} · ${scope}`;
+}
+
 /**
  * 공유 카드(PROJECT.md §4, W3-3 D) — Letterboxd 문법을 빌린 한 장짜리 요약.
  * "알고리즘이 고른 게 아니라 내가 고른 것들"이라는 정체성을 밖으로 내보내는 유일한 표면이다.
@@ -114,9 +120,7 @@ export function ShareCardScreen({ onBack }: ShareCardScreenProps) {
 
           <View style={card.footer}>
             <Text style={card.footerPeriod}>{periodLabel(data?.from ?? null, data?.to ?? null)}</Text>
-            <Text style={card.footerStats}>
-              평균 ★{(data?.avg ?? 0).toFixed(1)} · 총 {data?.total ?? 0}개
-            </Text>
+            <Text style={card.footerStats}>{statsLabel(data?.total ?? 0, items.length, data?.avg ?? 0)}</Text>
           </View>
         </View>
       </ScrollView>
